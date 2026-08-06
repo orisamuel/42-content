@@ -38,6 +38,7 @@
   #status { padding:12px 16px; border-radius:10px; font-weight:600; display:none; font-size:14.5px; }
   #status.ok { display:block; background:#e7f8f0; color:#0e7c5a; border:1px solid #b5e8d3; }
   #status.err { display:block; background:#fdeaec; color:#c22733; border:1px solid #f5c2c7; white-space:pre-wrap; }
+  #status a { color:inherit; font-weight:800; text-decoration:underline; }
   #leadFields { display:none; padding:14px; background:#f7f8fa; border-radius:10px; margin-top:10px; }
   #preview { display:none; border-top:2px dashed var(--line); margin-top:18px; padding-top:18px; }
   #preview h3 { font-size:22px; font-weight:900; margin-bottom:6px; }
@@ -55,6 +56,12 @@
 
 <div class="wrap">
   <div id="status"></div>
+
+  <section class="panel">
+    <h2>סיסמת ניהול</h2>
+    <label>סיסמה (עובדת מכל דפדפן ומחשב, נשמרת מקומית לנוחות)</label>
+    <input type="password" id="admin-pass" placeholder="סיסמת הניהול של מגזין 42">
+  </section>
 
   <section class="panel">
     <h2>יצירת תוכן עם AI</h2>
@@ -97,7 +104,7 @@
     </div>
     <label class="check" style="margin-top:14px"><input type="checkbox" id="f-featured"> כתבה ראשית (תוצג בראש עמוד הבית)</label>
     <label>גוף הכתבה *</label>
-    <textarea id="f-body" placeholder="כתבו כאן את הכתבה. פסקאות מופרדות בשורה ריקה.&#10;&#10;## כותרת ביניים&#10;&#10;**טקסט מודגש**, [קישור](https://example.com)&#10;&#10;- פריט ברשימה&#10;- פריט נוסף"></textarea>
+    <textarea id="f-body" placeholder="כתבו כאן את הכתבה (או תנו ל-AI). פסקאות מופרדות בשורה ריקה.&#10;&#10;## כותרת ביניים&#10;&#10;**טקסט מודגש**, [קישור](https://example.com)&#10;&#10;- פריט ברשימה&#10;- פריט נוסף"></textarea>
   </section>
 
   <section class="panel">
@@ -131,15 +138,7 @@
 
   <section class="panel">
     <h2>פרסום</h2>
-    <label>GitHub Token (נשמר רק בדפדפן הזה)</label>
-    <input type="password" id="gh-token" placeholder="ghp_... או github_pat_...">
-    <div class="hint">
-      טוקן עם הרשאת Contents: Read and write לריפו. יצירה:
-      GitHub ← Settings ← Developer settings ← Fine-grained tokens
-    </div>
-    <label>Gemini API Key (ליצירת תוכן, נשמר רק בדפדפן הזה)</label>
-    <input type="password" id="gemini-key" placeholder="מפתח Gemini מ-AI Studio">
-    <div class="actions" style="margin-top:16px">
+    <div class="actions">
       <button class="btn btn-primary" id="btn-publish">פרסום הכתבה לאתר</button>
       <button class="btn btn-ghost" id="btn-preview">תצוגה מקדימה</button>
       <button class="btn btn-ghost" id="btn-json">העתקת JSON</button>
@@ -151,17 +150,42 @@
 <script>
 (function () {
   'use strict';
-  var REPO = 'orisamuel/42-content';
-  var FILE = 'data/articles.json';
+  var API = 'https://script.google.com/macros/s/AKfycbz4XJXiKdMbF6nxmfedy0SwdnbXgpdTfzKzFWMDtVmynumXSn1i-VBN__dk89RjKgRU4A/exec';
+  var SITE_BASE = 'https://orisamuel.github.io/42-content';
   var CATEGORIES = ['חדשות', 'כלכלה', 'צרכנות', 'טכנולוגיה', 'לייפסטייל', 'ספורט'];
 
   var $ = function (id) { return document.getElementById(id); };
   var statusEl = $('status');
 
-  function showStatus(msg, ok) {
+  function showStatus(msg, ok, linkUrl, linkText) {
     statusEl.textContent = msg;
+    if (linkUrl) {
+      statusEl.appendChild(document.createTextNode(' '));
+      var a = document.createElement('a');
+      a.href = linkUrl;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.textContent = linkText || linkUrl;
+      statusEl.appendChild(a);
+    }
     statusEl.className = ok ? 'ok' : 'err';
     statusEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  /* קריאה לשרת הניהול (Apps Script). POST כ-text/plain כדי לא להפעיל preflight */
+  function api(action, payload) {
+    var pass = $('admin-pass').value.trim();
+    if (!pass) {
+      showStatus('נדרשת סיסמת ניהול (בחלונית העליונה).', false);
+      return Promise.reject(new Error('no-password'));
+    }
+    try { localStorage.setItem('admin42pass', pass); } catch (e) {}
+    var body = JSON.stringify(Object.assign({ action: action, password: pass }, payload || {}));
+    return fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: body
+    }).then(function (r) { return r.json(); });
   }
 
   /* קטגוריות - מנסה לטעון מהאתר, אחרת רשימה קבועה */
@@ -175,79 +199,43 @@
     if (s.categories) fillCategories(s.categories.map(function (c) { return c.name; }));
   }).catch(function () {});
 
-  /* טוקן ומפתח נשמרים מקומית */
+  /* סיסמה נשמרת מקומית לנוחות */
   try {
-    var saved = localStorage.getItem('gh42token');
-    if (saved) $('gh-token').value = saved;
-    var savedKey = localStorage.getItem('gemini42key');
-    if (savedKey) $('gemini-key').value = savedKey;
+    var saved = localStorage.getItem('admin42pass');
+    if (saved) $('admin-pass').value = saved;
   } catch (e) {}
 
-  /* --- יצירת תוכן עם Gemini --- */
+  $('lead-on').addEventListener('change', function () {
+    $('leadFields').style.display = this.checked ? 'block' : 'none';
+  });
+
+  /* --- יצירת תוכן עם AI --- */
   $('btn-generate').addEventListener('click', function () {
     var topic = $('ai-topic').value.trim() || $('f-title').value.trim();
     if (!topic) { showStatus('כתבו נושא לכתבה (או מלאו כותרת) כדי לייצר תוכן.', false); return; }
-    var key = $('gemini-key').value.trim();
-    if (!key) { showStatus('נדרש Gemini API Key (בחלונית הפרסום למטה, נשמר בדפדפן בלבד).', false); return; }
-    try { localStorage.setItem('gemini42key', key); } catch (e) {}
 
-    var leadOn = $('lead-on').checked;
-    var category = $('f-category').value;
     var btn = this;
     btn.disabled = true;
     var origText = btn.textContent;
     btn.textContent = 'כותב... (עד חצי דקה)';
     showStatus('Gemini כותב את הכתבה...', true);
 
-    var system = 'אתה כותב תוכן בכיר במגזין דיגיטלי ישראלי בשם "מגזין 42". כתוב כתבת מגזין בעברית רהוטה על הנושא שתקבל.\n' +
-      'כללים מחייבים:\n' +
-      '- אל תמציא עובדות ספציפיות: בלי מספרים מדויקים, שמות של אנשים או חברות, מחקרים או ציטוטים פיקטיביים. ידע כללי ועצות מעשיות - כן.\n' +
-      '- title: כותרת מסקרנת ומזמינה אך מדויקת.\n' +
-      '- subtitle: משפט או שניים שמרחיבים את הכותרת.\n' +
-      '- body: גוף של 500-700 מילים בפורמט הבא: פסקאות מופרדות בשורה ריקה, כותרות ביניים בשורה שמתחילה ב-"## ", אפשר רשימות בשורות שמתחילות ב-"- " והדגשות עם **טקסט מודגש**.\n' +
-      '- סגנון מגזיני, ברור ופרקטי, פנייה לקוראים בגוף שני רבים.\n' +
-      '- הקטגוריה באתר: ' + category + '.\n' +
-      (leadOn ? '- בסוף הכתבה יופיע טופס השארת פרטים - סיים בפסקה קצרה שמובילה באופן טבעי להשארת פרטים.' : '');
-
-    fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=' + encodeURIComponent(key), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: system }] },
-        contents: [{ role: 'user', parts: [{ text: 'נושא הכתבה: ' + topic }] }],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: 'OBJECT',
-            properties: {
-              title: { type: 'STRING' },
-              subtitle: { type: 'STRING' },
-              body: { type: 'STRING' }
-            },
-            required: ['title', 'subtitle', 'body']
-          },
-          maxOutputTokens: 8192
-        }
-      })
+    api('generateArticle', {
+      topic: topic,
+      category: $('f-category').value,
+      leadOn: $('lead-on').checked
     })
-      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
       .then(function (res) {
-        if (!res.ok) throw new Error((res.data.error && res.data.error.message) || 'שגיאת API');
-        var parts = (res.data.candidates && res.data.candidates[0] && res.data.candidates[0].content && res.data.candidates[0].content.parts) || [];
-        var text = parts.map(function (p) { return p.text || ''; }).join('');
-        var out = JSON.parse(text);
-        if (!out.title || !out.body) throw new Error('התקבלה תשובה חלקית - נסו שוב');
-        $('f-title').value = out.title;
-        $('f-subtitle').value = out.subtitle || '';
-        $('f-body').value = out.body;
+        if (!res.success) throw new Error(res.message || 'שגיאה');
+        $('f-title').value = res.title;
+        $('f-subtitle').value = res.subtitle || '';
+        $('f-body').value = res.body;
         showStatus('הכתבה נכתבה! עברו על הטקסט, ערכו במידת הצורך - ואז פרסמו.', true);
       })
-      .catch(function (err) { showStatus('שגיאה ביצירת התוכן: ' + err.message, false); })
+      .catch(function (err) {
+        if (err.message !== 'no-password') showStatus('שגיאה ביצירת התוכן: ' + err.message, false);
+      })
       .finally(function () { btn.disabled = false; btn.textContent = origText; });
-  });
-
-  $('lead-on').addEventListener('change', function () {
-    $('leadFields').style.display = this.checked ? 'block' : 'none';
   });
 
   function makeSlug() {
@@ -262,7 +250,7 @@
     if (!title || !body) { showStatus('חסרים שדות חובה: כותרת וגוף הכתבה.', false); return null; }
 
     var slug = $('f-slug').value.trim() || makeSlug();
-    if (!/^[a-z0-9-]+$/i.test(slug)) { showStatus('המזהה יכול להכיל רק אותיות באנגלית, מספרים ומקפים.', false); return null; }
+    if (!/^[a-zA-Z0-9-]+$/.test(slug)) { showStatus('המזהה יכול להכיל רק אותיות באנגלית, מספרים ומקפים.', false); return null; }
 
     var article = {
       id: slug,
@@ -298,65 +286,24 @@
     return article;
   }
 
-  /* קידוד/פענוח UTF-8 <-> Base64 */
-  function b64ToUtf8(b64) {
-    var bin = atob(b64.replace(/\n/g, ''));
-    var bytes = new Uint8Array(bin.length);
-    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return new TextDecoder('utf-8').decode(bytes);
-  }
-  function utf8ToB64(str) {
-    var bytes = new TextEncoder().encode(str);
-    var bin = '';
-    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-    return btoa(bin);
-  }
-
+  /* --- פרסום --- */
   $('btn-publish').addEventListener('click', function () {
     var article = buildArticle();
     if (!article) return;
-    var token = $('gh-token').value.trim();
-    if (!token) { showStatus('נדרש GitHub Token כדי לפרסם ישירות. אפשר גם להעתיק JSON ולהדביק ידנית.', false); return; }
-    try { localStorage.setItem('gh42token', token); } catch (e) {}
 
     var btn = this;
     btn.disabled = true;
     showStatus('מפרסם...', true);
 
-    var api = 'https://api.github.com/repos/' + REPO + '/contents/' + FILE;
-    var headers = {
-      'Authorization': 'Bearer ' + token,
-      'Accept': 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28'
-    };
-
-    fetch(api, { headers: headers })
-      .then(function (r) {
-        if (!r.ok) throw new Error('קריאת הקובץ נכשלה (' + r.status + ') - בדקו את הטוקן וההרשאות');
-        return r.json();
+    api('publishArticle', { article: article })
+      .then(function (res) {
+        if (!res.success) throw new Error(res.message || 'שגיאה');
+        showStatus('הכתבה פורסמה! היא תעלה לאוויר תוך 2-1 דקות בקישור:', true, res.url, res.url.split('/articles/')[1]);
+        $('f-title').value = ''; $('f-subtitle').value = ''; $('f-body').value = ''; $('f-slug').value = ''; $('ai-topic').value = '';
       })
-      .then(function (data) {
-        var articles = JSON.parse(b64ToUtf8(data.content));
-        if (articles.some(function (a) { return a.id === article.id; })) {
-          throw new Error('כבר קיימת כתבה עם המזהה "' + article.id + '" - בחרו מזהה אחר.');
-        }
-        articles.unshift(article);
-        return fetch(api, {
-          method: 'PUT',
-          headers: headers,
-          body: JSON.stringify({
-            message: 'כתבה חדשה: ' + article.title,
-            content: utf8ToB64(JSON.stringify(articles, null, 2)),
-            sha: data.sha
-          })
-        });
+      .catch(function (err) {
+        if (err.message !== 'no-password') showStatus('שגיאה בפרסום: ' + err.message, false);
       })
-      .then(function (r) {
-        if (!r.ok) throw new Error('שמירת הקובץ נכשלה (' + r.status + ')');
-        showStatus('הכתבה פורסמה! האתר יתעדכן תוך 2-1 דקות (GitHub Actions בונה את הדפים ומפרסם).', true);
-        $('f-title').value = ''; $('f-subtitle').value = ''; $('f-body').value = ''; $('f-slug').value = '';
-      })
-      .catch(function (err) { showStatus('שגיאה: ' + err.message, false); })
       .finally(function () { btn.disabled = false; });
   });
 
