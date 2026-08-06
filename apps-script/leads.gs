@@ -13,6 +13,7 @@ var SHEET_ID = '1Vw1TM5Jg_WiQTxBFJCvveNm_Bn5pcgYLcu28egueMXY';
 var SHEET_NAME = 'לידים';
 var REPO = 'orisamuel/42-content';
 var ARTICLES_PATH = 'data/articles.json';
+var RSS_PATH = 'data/rss-articles.json';
 var SITE_BASE = 'https://orisamuel.github.io/42-content';
 var TEXT_MODEL = 'gemini-flash-latest';
 var IMAGE_MODELS = ['gemini-3.1-flash-image-preview', 'gemini-2.5-flash-image', 'gemini-3-pro-image'];
@@ -105,11 +106,21 @@ function ghPutFile(token, path, base64Content, message, sha) {
   return res.getResponseCode() < 300;
 }
 
-function readArticles(token) {
-  var fileData = ghGetFile(token, ARTICLES_PATH);
+function readJsonFile(token, path) {
+  var fileData = ghGetFile(token, path);
   if (!fileData) return null;
   var json = Utilities.newBlob(Utilities.base64Decode(fileData.content.replace(/\n/g, ''))).getDataAsString('UTF-8');
-  return { articles: JSON.parse(json), sha: fileData.sha };
+  return { articles: JSON.parse(json), sha: fileData.sha, path: path };
+}
+
+function writeJsonFile(token, data, message) {
+  return ghPutFile(
+    token,
+    data.path,
+    Utilities.base64Encode(JSON.stringify(data.articles, null, 2), Utilities.Charset.UTF_8),
+    message,
+    data.sha
+  );
 }
 
 function requireToken(props) {
@@ -118,30 +129,47 @@ function requireToken(props) {
   return token;
 }
 
-/* ---------- רשימת כתבות ושליפה לעריכה ---------- */
+/* ---------- רשימת כתבות ושליפה לעריכה (ידניות + RSS) ---------- */
 function getArticles(props) {
-  var data = readArticles(requireToken(props));
-  if (!data) return jsonResponse({ success: false, message: 'קריאת הכתבות נכשלה' });
+  var token = requireToken(props);
+  var manual = readJsonFile(token, ARTICLES_PATH);
+  if (!manual) return jsonResponse({ success: false, message: 'קריאת הכתבות נכשלה' });
+  var rss = readJsonFile(token, RSS_PATH) || { articles: [] };
+
+  var pick = function (type) {
+    return function (a) {
+      return { id: a.id, title: a.title, category: a.category, date: a.date, type: type };
+    };
+  };
   return jsonResponse({
     success: true,
-    articles: data.articles.map(function (a) {
-      return { id: a.id, title: a.title, category: a.category, date: a.date };
-    })
+    articles: manual.articles.map(pick('manual')).concat(rss.articles.map(pick('rss')))
   });
 }
 
 function getArticle(req, props) {
-  var data = readArticles(requireToken(props));
-  if (!data) return jsonResponse({ success: false, message: 'קריאת הכתבות נכשלה' });
-  for (var i = 0; i < data.articles.length; i++) {
-    if (data.articles[i].id === req.id) {
-      return jsonResponse({ success: true, article: data.articles[i] });
+  var token = requireToken(props);
+  var files = [readJsonFile(token, ARTICLES_PATH), readJsonFile(token, RSS_PATH)];
+  var types = ['manual', 'rss'];
+  for (var f = 0; f < files.length; f++) {
+    if (!files[f]) continue;
+    for (var i = 0; i < files[f].articles.length; i++) {
+      if (files[f].articles[i].id === req.id) {
+        return jsonResponse({ success: true, article: files[f].articles[i], type: types[f] });
+      }
     }
   }
   return jsonResponse({ success: false, message: 'כתבה לא נמצאה' });
 }
 
 /* ---------- פרסום / עדכון כתבה ---------- */
+function findIndexById(articles, id) {
+  for (var i = 0; i < articles.length; i++) {
+    if (articles[i].id === id) return i;
+  }
+  return -1;
+}
+
 function saveArticle(req, props, isUpdate) {
   var token = requireToken(props);
   var article = req.article;
@@ -152,32 +180,33 @@ function saveArticle(req, props, isUpdate) {
     return jsonResponse({ success: false, message: 'המזהה יכול להכיל רק אותיות באנגלית, מספרים ומקפים' });
   }
 
-  var data = readArticles(token);
-  if (!data) return jsonResponse({ success: false, message: 'קריאת הכתבות מגיטהאב נכשלה' });
+  var manual = readJsonFile(token, ARTICLES_PATH);
+  if (!manual) return jsonResponse({ success: false, message: 'קריאת הכתבות מגיטהאב נכשלה' });
+  var rss = readJsonFile(token, RSS_PATH) || { articles: [], path: RSS_PATH, sha: null };
 
-  var idx = -1;
-  for (var i = 0; i < data.articles.length; i++) {
-    if (data.articles[i].id === article.id) { idx = i; break; }
-  }
+  var manualIdx = findIndexById(manual.articles, article.id);
+  var rssIdx = findIndexById(rss.articles, article.id);
 
   if (isUpdate) {
-    if (idx === -1) return jsonResponse({ success: false, message: 'הכתבה לעדכון לא נמצאה' });
-    article.date = data.articles[idx].date; // שומרים את תאריך הפרסום המקורי
+    // מעדכנים בקובץ שבו הכתבה נמצאת - ידני או RSS
+    var target = manualIdx !== -1 ? manual : (rssIdx !== -1 ? rss : null);
+    var idx = manualIdx !== -1 ? manualIdx : rssIdx;
+    if (!target) return jsonResponse({ success: false, message: 'הכתבה לעדכון לא נמצאה' });
+    article.date = target.articles[idx].date; // שומרים את תאריך הפרסום המקורי
     article.updatedAt = new Date().toISOString();
-    data.articles[idx] = article;
+    target.articles[idx] = article;
+    if (!writeJsonFile(token, target, 'עדכון כתבה: ' + article.title)) {
+      return jsonResponse({ success: false, message: 'השמירה לגיטהאב נכשלה' });
+    }
   } else {
-    if (idx !== -1) return jsonResponse({ success: false, message: 'כבר קיימת כתבה עם המזהה "' + article.id + '" - בחרו מזהה אחר' });
-    data.articles.unshift(article);
+    if (manualIdx !== -1 || rssIdx !== -1) {
+      return jsonResponse({ success: false, message: 'כבר קיימת כתבה עם המזהה "' + article.id + '" - בחרו מזהה אחר' });
+    }
+    manual.articles.unshift(article);
+    if (!writeJsonFile(token, manual, 'כתבה חדשה: ' + article.title)) {
+      return jsonResponse({ success: false, message: 'השמירה לגיטהאב נכשלה' });
+    }
   }
-
-  var ok = ghPutFile(
-    token,
-    ARTICLES_PATH,
-    Utilities.base64Encode(JSON.stringify(data.articles, null, 2), Utilities.Charset.UTF_8),
-    (isUpdate ? 'עדכון כתבה: ' : 'כתבה חדשה: ') + article.title,
-    data.sha
-  );
-  if (!ok) return jsonResponse({ success: false, message: 'השמירה לגיטהאב נכשלה' });
 
   return jsonResponse({
     success: true,

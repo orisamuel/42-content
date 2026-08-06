@@ -102,7 +102,7 @@
       <select id="edit-picker" style="flex:1; min-width:200px; display:none"></select>
       <button class="btn btn-ghost btn-sm" id="btn-load" style="display:none">פתח לעריכה</button>
     </div>
-    <div class="hint">עריכה אפשרית לכתבות שפורסמו דרך הפאנל (לא לכתבות ה-RSS האוטומטיות).</div>
+    <div class="hint">אפשר לערוך כל כתבה - גם ידניות וגם כתבות ה-RSS האוטומטיות (מסומנות · RSS). שימו לב: כתבת RSS מתחלפת בסבב היומי כשנכנסות חדשות ממנה.</div>
   </section>
 
   <div id="editBar">
@@ -212,6 +212,7 @@
   var statusEl = $('status');
   var editingId = null;
   var editingLead = null;
+  var editingOriginal = null;
   var adminPass = '';
 
   function showStatus(msg, ok, linkUrl, linkText) {
@@ -331,7 +332,7 @@
       if (!res.success) throw new Error(res.message);
       var picker = $('edit-picker');
       picker.innerHTML = res.articles.map(function (a) {
-        return '<option value="' + a.id + '">' + a.title.slice(0, 60) + ' (' + a.category + ')</option>';
+        return '<option value="' + a.id + '">' + a.title.slice(0, 55) + ' (' + a.category + ')' + (a.type === 'rss' ? ' · RSS' : '') + '</option>';
       }).join('');
       picker.style.display = 'block';
       $('btn-load').style.display = 'inline-block';
@@ -350,6 +351,7 @@
       var a = res.article;
       editingId = a.id;
       editingLead = a.lead || null;
+      editingOriginal = a;
       $('f-title').value = a.title || '';
       $('f-subtitle').value = a.subtitle || '';
       $('f-category').value = a.category || CATEGORIES[0];
@@ -389,6 +391,7 @@
   function exitEditMode() {
     editingId = null;
     editingLead = null;
+    editingOriginal = null;
     $('editBar').className = '';
     $('f-slug').disabled = false;
     $('btn-publish').textContent = 'פרסום הכתבה לאתר';
@@ -531,6 +534,12 @@
         campaign: $('l-campaign').value.trim() || slug,
         fields: fields
       };
+    }
+
+    /* בעריכה - משמרים שדות מקוריים שלא מנוהלים בטופס (מקור RSS וכו') */
+    if (editingOriginal) {
+      if (editingOriginal.source) article.source = editingOriginal.source;
+      if ('rewritten' in editingOriginal) article.rewritten = editingOriginal.rewritten;
     }
     return article;
   }
