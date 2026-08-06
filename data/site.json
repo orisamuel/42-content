@@ -4,7 +4,7 @@
   "tagline": "התוכן שמעניין אתכם באמת",
   "description": "מגזין 42 - חדשות, כלכלה, צרכנות, טכנולוגיה ולייפסטייל. כל התוכן שמעניין אתכם במקום אחד.",
   "baseUrl": "https://orisamuel.github.io/42-content",
-  "leadWebhook": "",
+  "leadWebhook": "https://script.google.com/macros/s/AKfycbz4XJXiKdMbF6nxmfedy0SwdnbXgpdTfzKzFWMDtVmynumXSn1i-VBN__dk89RjKgRU4A/exec",
   "categories": [
     { "name": "חדשות", "slug": "news" },
     { "name": "כלכלה", "slug": "economy" },
