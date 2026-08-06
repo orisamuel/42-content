@@ -237,10 +237,6 @@ function buildArticles() {
       ...all.filter((x) => x.id !== a.id && x.category !== a.category),
     ].slice(0, 3);
 
-    const sourceNote = a.source && a.source.url
-      ? `<div class="source-note">הכתבה מבוססת על דיווח שפורסם ב<a href="${escAttr(a.source.url)}" target="_blank" rel="noopener nofollow">${esc(a.source.name || 'מקור')}</a>. לחצו לקריאת הכתבה המקורית והמלאה.</div>`
-      : '';
-
     const jsonLd = {
       '@context': 'https://schema.org',
       '@type': 'NewsArticle',
@@ -281,7 +277,6 @@ function buildArticles() {
   <div class="article-body">
 ${mdToHtml(a.body || '')}
   </div>
-  ${sourceNote}
   ${leadFormHtml(a)}
   ${shareRow}
   <!-- אזור פרסום: הדביקו כאן את קוד ה-widget של Taboola/Outbrain -->

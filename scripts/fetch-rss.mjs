@@ -2,12 +2,14 @@
  * fetch-rss.mjs - משיכת פידים של RSS מאתרי חדשות וניסוח הכתבות מחדש
  *
  * - מושך את הפידים המוגדרים ב-data/site.json
- * - מנסח מחדש כותרת + תקציר + גוף באמצעות Claude API (אם מוגדר ANTHROPIC_API_KEY)
+ * - מנסח מחדש כותרת + תקציר + גוף באמצעות Gemini (GEMINI_API_KEY)
+ *   או Claude (ANTHROPIC_API_KEY) - לפי המפתח שמוגדר
  * - בלי מפתח API: הכתבה נשמרת עם הניסוח המקורי + קרדיט למקור
  * - כתבות שכבר נוסחו נשמרות במטמון (data/rss-articles.json) ולא מנוסחות שוב
  *
  * הרצה: node scripts/fetch-rss.mjs
- * משתני סביבה: ANTHROPIC_API_KEY (אופציונלי), REWRITE_MODEL (ברירת מחדל: claude-opus-5)
+ * מפתחות נטענים גם מקובץ .env מקומי (לא עולה לגיט)
+ * משתני סביבה: GEMINI_API_KEY / ANTHROPIC_API_KEY, REWRITE_MODEL (אופציונלי)
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -15,10 +17,22 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+/* טעינת .env מקומי (אם קיים) - שורות בפורמט KEY=VALUE */
+const envPath = join(ROOT_DIR, '.env');
+if (existsSync(envPath)) {
+  for (const line of readFileSync(envPath, 'utf8').split('\n')) {
+    const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$/);
+    if (m && !(m[1] in process.env)) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+  }
+}
+
 const site = JSON.parse(readFileSync(join(ROOT_DIR, 'data/site.json'), 'utf8'));
 
-const API_KEY = process.env.ANTHROPIC_API_KEY || '';
-const MODEL = process.env.REWRITE_MODEL || 'claude-opus-5';
+const GEMINI_KEY = process.env.GEMINI_API_KEY || '';
+const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';
+const PROVIDER = GEMINI_KEY ? 'gemini' : ANTHROPIC_KEY ? 'claude' : '';
+const MODEL = process.env.REWRITE_MODEL || (PROVIDER === 'gemini' ? 'gemini-flash-latest' : 'claude-opus-5');
 const UA = 'Mozilla/5.0 (compatible; Magazine42Bot/1.0)';
 
 /* ---------- עזרי טקסט ---------- */
@@ -143,46 +157,91 @@ const SYSTEM_PROMPT = `אתה עורך חדשות ותיק במגזין דיגי
 - אל תזכיר את שם אתר המקור בגוף הטקסט.
 - החזר עבור כל פריט את אותו id שקיבלת, ללא שינוי.`;
 
-async function rewriteBatch(items) {
-  const payload = {
-    model: MODEL,
-    max_tokens: 8000,
-    output_config: {
-      effort: 'low',
-      format: { type: 'json_schema', schema: REWRITE_SCHEMA },
-    },
-    system: SYSTEM_PROMPT,
-    messages: [{
-      role: 'user',
-      content:
-        'נסח מחדש את הידיעות הבאות. עבור כל ידיעה החזר: id (ללא שינוי), title, subtitle, body.\n\n' +
-        JSON.stringify(items.map((it) => ({ id: it.id, title: it.title, summary: it.summary })), null, 1),
-    }],
-  };
+const userPrompt = (items) =>
+  'נסח מחדש את הידיעות הבאות. עבור כל ידיעה החזר: id (ללא שינוי), title, subtitle, body.\n\n' +
+  JSON.stringify(items.map((it) => ({ id: it.id, title: it.title, summary: it.summary })), null, 1);
 
+async function postJson(url, headers, payload) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 180000);
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
+      headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify(payload),
       signal: ctrl.signal,
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(`API ${res.status}: ${data?.error?.message || ''}`);
-    if (data.stop_reason === 'refusal') throw new Error('הבקשה נדחתה על ידי המודל');
-    const text = (data.content || []).find((b) => b.type === 'text')?.text || '';
-    const parsed = JSON.parse(text);
-    return new Map((parsed.articles || []).map((a) => [a.id, a]));
+    if (!res.ok) throw new Error(`API ${res.status}: ${data?.error?.message || JSON.stringify(data).slice(0, 200)}`);
+    return data;
   } finally {
     clearTimeout(timer);
   }
 }
+
+/* סכימת JSON בפורמט של Gemini (טיפוסים באותיות גדולות) */
+const GEMINI_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    articles: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          id: { type: 'STRING' },
+          title: { type: 'STRING' },
+          subtitle: { type: 'STRING' },
+          body: { type: 'STRING' },
+        },
+        required: ['id', 'title', 'subtitle', 'body'],
+      },
+    },
+  },
+  required: ['articles'],
+};
+
+async function rewriteBatchGemini(items) {
+  const data = await postJson(
+    `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`,
+    { 'x-goog-api-key': GEMINI_KEY },
+    {
+      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      contents: [{ role: 'user', parts: [{ text: userPrompt(items) }] }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: GEMINI_SCHEMA,
+        maxOutputTokens: 16384,
+      },
+    },
+  );
+  if (data.promptFeedback?.blockReason) throw new Error(`נחסם: ${data.promptFeedback.blockReason}`);
+  const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
+  const parsed = JSON.parse(text);
+  return new Map((parsed.articles || []).map((a) => [a.id, a]));
+}
+
+async function rewriteBatchClaude(items) {
+  const data = await postJson(
+    'https://api.anthropic.com/v1/messages',
+    { 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+    {
+      model: MODEL,
+      max_tokens: 8000,
+      output_config: {
+        effort: 'low',
+        format: { type: 'json_schema', schema: REWRITE_SCHEMA },
+      },
+      system: SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: userPrompt(items) }],
+    },
+  );
+  if (data.stop_reason === 'refusal') throw new Error('הבקשה נדחתה על ידי המודל');
+  const text = (data.content || []).find((b) => b.type === 'text')?.text || '';
+  const parsed = JSON.parse(text);
+  return new Map((parsed.articles || []).map((a) => [a.id, a]));
+}
+
+const rewriteBatch = PROVIDER === 'gemini' ? rewriteBatchGemini : rewriteBatchClaude;
 
 /* ---------- ריצה ראשית ---------- */
 const hash = (s) => createHash('sha1').update(s).digest('hex').slice(0, 12);
@@ -209,8 +268,8 @@ async function main() {
 
   // 3. ניסוח מחדש של הכתבות החדשות
   const rewrites = new Map();
-  if (API_KEY && newItems.length) {
-    console.log(`מנסח מחדש באמצעות ${MODEL}...`);
+  if (PROVIDER && newItems.length) {
+    console.log(`מנסח מחדש באמצעות ${MODEL} (${PROVIDER})...`);
     const BATCH = 6;
     for (let i = 0; i < newItems.length; i += BATCH) {
       const batch = newItems.slice(i, i + BATCH);
@@ -222,8 +281,8 @@ async function main() {
         console.warn(`  ✗ קבוצה ${Math.floor(i / BATCH) + 1} נכשלה: ${err.message}`);
       }
     }
-  } else if (!API_KEY) {
-    console.log('אין ANTHROPIC_API_KEY - הכתבות יישמרו בניסוח המקורי עם קרדיט למקור.');
+  } else if (!PROVIDER) {
+    console.log('אין GEMINI_API_KEY / ANTHROPIC_API_KEY - הכתבות יישמרו בניסוח המקורי.');
   }
 
   // 4. בניית רשומות הכתבות

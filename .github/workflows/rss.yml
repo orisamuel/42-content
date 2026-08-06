@@ -2,7 +2,7 @@ name: עדכון RSS ובנייה
 
 on:
   schedule:
-    - cron: '0 */3 * * *'   # כל 3 שעות
+    - cron: '0 4 * * 0-4'   # פעם ביום ב-04:00 UTC (07:00 שעון ישראל), ראשון עד חמישי
   workflow_dispatch:
 
 permissions:
@@ -24,6 +24,7 @@ jobs:
 
       - name: משיכת פידים וניסוח מחדש
         env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           REWRITE_MODEL: ${{ vars.REWRITE_MODEL }}
         run: node scripts/fetch-rss.mjs

@@ -33,15 +33,16 @@ data/articles.json  (כתבות ידניות + לידים)  ──────�
 
 **דרך חלופית:** עריכה ישירה של `data/articles.json` בגיטהאב (עמוד הניהול יודע גם להעתיק JSON מוכן ללוח).
 
-## הפעלת ניסוח מחדש עם Claude (חד-פעמי)
+## ניסוח מחדש (Gemini)
 
-1. בריפו בגיטהאב: Settings → Secrets and variables → Actions → New repository secret
-2. שם: `ANTHROPIC_API_KEY`, ערך: מפתח API מ-[console.anthropic.com](https://console.anthropic.com)
-3. זהו. מהריצה הבאה כל כתבת RSS חדשה תנוסח מחדש אוטומטית.
+הניסוח מתבצע עם Gemini. המפתח מוגדר בשני מקומות:
 
-ללא מפתח, הכתבות מתפרסמות בניסוח המקורי עם קרדיט וקישור למקור.
+- **בריפו (ל-GitHub Actions):** secret בשם `GEMINI_API_KEY`
+- **מקומית (להרצות ידניות):** קובץ `.env` בתיקיית הפרויקט (לא עולה לגיט) עם השורה `GEMINI_API_KEY=...`
 
-אופציונלי: להחלפת המודל, הוסיפו Repository Variable בשם `REWRITE_MODEL` (ברירת מחדל: `claude-opus-5`; לחיסכון בעלויות אפשר `claude-haiku-4-5`).
+נתמך גם מפתח Claude (`ANTHROPIC_API_KEY`) - אם מוגדרים שניהם, Gemini קודם.
+
+אופציונלי: להחלפת המודל, הוסיפו Repository Variable בשם `REWRITE_MODEL` (ברירת מחדל: `gemini-flash-latest`).
 
 ## חיבור טפסי הלידים לגוגל שיטס (חד-פעמי)
 
