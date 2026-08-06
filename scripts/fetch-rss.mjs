@@ -11,10 +11,11 @@
  * מפתחות נטענים גם מקובץ .env מקומי (לא עולה לגיט)
  * משתני סביבה: GEMINI_API_KEY / ANTHROPIC_API_KEY, REWRITE_MODEL (אופציונלי)
  */
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { generateImage, articleImagePrompt } from './gen-image.mjs';
 
 const ROOT_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -246,16 +247,23 @@ const rewriteBatch = PROVIDER === 'gemini' ? rewriteBatchGemini : rewriteBatchCl
 /* ---------- ריצה ראשית ---------- */
 const hash = (s) => createHash('sha1').update(s).digest('hex').slice(0, 12);
 
+const catSlug = (name) => (site.categories.find((c) => c.name === name) || {}).slug || 'news';
+const IMG_DIR = join(ROOT_DIR, 'assets/rss-img');
+
 async function main() {
+  // מכסת RSS: משלימים עד למקסימום הכולל של האתר (כולל הכתבות הידניות)
+  const manualCount = JSON.parse(readFileSync(join(ROOT_DIR, 'data/articles.json'), 'utf8')).length;
+  const rssCap = Math.max(4, (site.maxTotalArticles || 20) - manualCount);
+
   // 1. משיכת כל הפידים במקביל
   const results = await Promise.all(site.feeds.map(fetchFeed));
-  const fetched = results.flat();
+  const fetched = results.flat().sort((a, b) => new Date(b.date) - new Date(a.date));
 
-  // מניעת כפילויות לפי קישור
+  // מניעת כפילויות לפי קישור + חיתוך מוקדם למכסה (לא מנסחים כתבות שלא ייכנסו)
   const byId = new Map();
   for (const it of fetched) {
     const id = 'r-' + hash(it.link);
-    if (!byId.has(id)) byId.set(id, { ...it, id });
+    if (!byId.has(id) && byId.size < rssCap + 8) byId.set(id, { ...it, id });
   }
 
   // 2. טעינת המטמון הקיים - כתבות שכבר נוסחו לא מנוסחות שוב
@@ -263,8 +271,8 @@ async function main() {
   const cache = existsSync(cachePath) ? JSON.parse(readFileSync(cachePath, 'utf8')) : [];
   const cacheMap = new Map(cache.map((a) => [a.id, a]));
 
-  const newItems = [...byId.values()].filter((it) => !cacheMap.has(it.id));
-  console.log(`\nסה"כ ${byId.size} כתבות בפידים, מתוכן ${newItems.length} חדשות`);
+  const newItems = [...byId.values()].filter((it) => !cacheMap.has(it.id)).slice(0, rssCap);
+  console.log(`\nמכסה: ${rssCap} כתבות RSS (${manualCount} ידניות). ${newItems.length} חדשות לעיבוד`);
 
   // 3. ניסוח מחדש של הכתבות החדשות
   const rewrites = new Map();
@@ -285,7 +293,26 @@ async function main() {
     console.log('אין GEMINI_API_KEY / ANTHROPIC_API_KEY - הכתבות יישמרו בניסוח המקורי.');
   }
 
-  // 4. בניית רשומות הכתבות
+  // 4. יצירת תמונות AI לכתבות החדשות (בלי תמונות ממקורות חדשותיים - זכויות יוצרים)
+  mkdirSync(IMG_DIR, { recursive: true });
+  const images = new Map();
+  if (PROVIDER === 'gemini' && newItems.length) {
+    console.log('מייצר תמונות AI...');
+    for (const it of newItems) {
+      const rw = rewrites.get(it.id);
+      const img = await generateImage(articleImagePrompt(rw?.title || it.title, it.category));
+      if (img) {
+        writeFileSync(join(IMG_DIR, `${it.id}.jpg`), img.buffer);
+        images.set(it.id, `${site.baseUrl}/assets/rss-img/${it.id}.jpg`);
+        process.stdout.write('✓');
+      } else {
+        process.stdout.write('✗');
+      }
+    }
+    console.log(` (${images.size}/${newItems.length})`);
+  }
+
+  // 5. בניית רשומות הכתבות - תמונה מג'ונרטת או פלייסהולדר קטגוריה, לעולם לא ממקור חדשותי
   const newArticles = newItems.map((it) => {
     const rw = rewrites.get(it.id);
     return {
@@ -293,7 +320,7 @@ async function main() {
       title: rw?.title || it.title,
       subtitle: rw?.subtitle || (it.summary ? it.summary.slice(0, 160) : ''),
       category: it.category,
-      image: it.image || '',
+      image: images.get(it.id) || `${site.baseUrl}/assets/img/cat-${catSlug(it.category)}.jpg`,
       author: 'מערכת 42',
       date: it.date,
       body: rw?.body || (it.summary || it.title),
@@ -303,16 +330,25 @@ async function main() {
     };
   });
 
-  // 5. איחוד: כתבות מהמטמון שעדיין בפיד + חדשות, ממוין מהחדש לישן
+  // 6. איחוד: כתבות מהמטמון שעדיין רלוונטיות + חדשות, ממוין מהחדש לישן, עד המכסה
   const merged = [
     ...newArticles,
-    ...cache.filter((a) => byId.has(a.id)),
+    ...cache,
   ]
+    .filter((a, i, arr) => arr.findIndex((x) => x.id === a.id) === i)
     .sort((a, b) => new Date(b.date) - new Date(a.date))
-    .slice(0, site.maxRssArticles || 36);
+    .slice(0, rssCap);
 
   writeFileSync(cachePath, JSON.stringify(merged, null, 2));
-  console.log(`\nנשמרו ${merged.length} כתבות RSS (${merged.filter((a) => a.rewritten).length} מנוסחות מחדש).`);
+
+  // 7. ניקוי תמונות של כתבות שיצאו מהאתר
+  const keep = new Set(merged.map((a) => `${a.id}.jpg`));
+  let cleaned = 0;
+  for (const f of readdirSync(IMG_DIR)) {
+    if (!keep.has(f)) { unlinkSync(join(IMG_DIR, f)); cleaned++; }
+  }
+
+  console.log(`\nנשמרו ${merged.length} כתבות RSS (${merged.filter((a) => a.rewritten).length} מנוסחות, ${cleaned} תמונות ישנות נוקו).`);
 }
 
 main().catch((err) => {

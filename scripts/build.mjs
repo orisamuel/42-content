@@ -84,8 +84,7 @@ if (!all.length) {
   process.exit(1);
 }
 
-const FALLBACK_IMG = 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=1200&q=80&auto=format&fit=crop';
-const imgOf = (a) => a.image || FALLBACK_IMG;
+const imgOf = (a) => a.image || `${site.baseUrl}/assets/img/cat-${catSlug(a.category)}.jpg`;
 
 /* ---------- רכיבי HTML ---------- */
 const navHtml = (root, activeCat = '') =>

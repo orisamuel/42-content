@@ -21,6 +21,6 @@
     { "name": "מעריב", "url": "https://www.maariv.co.il/Rss/RssChadashot", "category": "חדשות" },
     { "name": "גיקטיים", "url": "https://www.geektime.co.il/feed/", "category": "טכנולוגיה" }
   ],
-  "maxRssArticles": 36,
-  "rssPerFeed": 8
+  "maxTotalArticles": 20,
+  "rssPerFeed": 6
 }

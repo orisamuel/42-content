@@ -1,12 +1,9 @@
 /**
- * מגזין 42 - שרת ניהול: לידים + פרסום כתבות + יצירת תוכן
- * ========================================================
+ * מגזין 42 - שרת ניהול: לידים + פרסום/עריכת כתבות + יצירת תוכן ותמונות
+ * =====================================================================
  * נפרס כ-Web app: Execute as Me | Who has access: Anyone
  *
- * סודות (Script Properties - בתפריט: Project Settings -> Script Properties):
- *   ADMIN_PASSWORD - סיסמת עמוד הניהול
- *   GH_TOKEN       - GitHub fine-grained token עם Contents: Read and write לריפו
- *   GEMINI_KEY     - מפתח Gemini ליצירת תוכן
+ * סודות (Script Properties): ADMIN_PASSWORD, GH_TOKEN, GEMINI_KEY
  *
  * חשוב: אחרי כל שינוי בקוד יש לבצע Deploy -> Manage deployments ->
  * Edit -> New version -> Deploy (אחרת הכתובת החיה לא מתעדכנת!)
@@ -17,6 +14,8 @@ var SHEET_NAME = 'לידים';
 var REPO = 'orisamuel/42-content';
 var ARTICLES_PATH = 'data/articles.json';
 var SITE_BASE = 'https://orisamuel.github.io/42-content';
+var TEXT_MODEL = 'gemini-flash-latest';
+var IMAGE_MODELS = ['gemini-3.1-flash-image-preview', 'gemini-2.5-flash-image', 'gemini-3-pro-image'];
 
 var HEADERS = [
   'תאריך', 'שעה', 'שם מלא', 'טלפון', 'דוא"ל', 'עיר',
@@ -54,7 +53,17 @@ function doPost(e) {
       case 'generateArticle':
         return generateArticle(req, props);
       case 'publishArticle':
-        return publishArticle(req, props);
+        return saveArticle(req, props, false);
+      case 'updateArticle':
+        return saveArticle(req, props, true);
+      case 'getArticles':
+        return getArticles(props);
+      case 'getArticle':
+        return getArticle(req, props);
+      case 'uploadImage':
+        return uploadImage(req, props);
+      case 'generateImage':
+        return generateImageAction(req, props);
       case 'checkAuth':
         return jsonResponse({ success: true, message: 'הסיסמה תקינה' });
       default:
@@ -62,6 +71,186 @@ function doPost(e) {
     }
   } catch (err) {
     return jsonResponse({ success: false, message: err.toString() });
+  }
+}
+
+/* ---------- עזרי GitHub ---------- */
+function ghHeaders(token) {
+  return {
+    'Authorization': 'Bearer ' + token,
+    'Accept': 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28'
+  };
+}
+
+function ghGetFile(token, path) {
+  var res = UrlFetchApp.fetch('https://api.github.com/repos/' + REPO + '/contents/' + path, {
+    headers: ghHeaders(token),
+    muteHttpExceptions: true
+  });
+  if (res.getResponseCode() !== 200) return null;
+  return JSON.parse(res.getContentText());
+}
+
+function ghPutFile(token, path, base64Content, message, sha) {
+  var payload = { message: message, content: base64Content };
+  if (sha) payload.sha = sha;
+  var res = UrlFetchApp.fetch('https://api.github.com/repos/' + REPO + '/contents/' + path, {
+    method: 'put',
+    contentType: 'application/json',
+    headers: ghHeaders(token),
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+  return res.getResponseCode() < 300;
+}
+
+function readArticles(token) {
+  var fileData = ghGetFile(token, ARTICLES_PATH);
+  if (!fileData) return null;
+  var json = Utilities.newBlob(Utilities.base64Decode(fileData.content.replace(/\n/g, ''))).getDataAsString('UTF-8');
+  return { articles: JSON.parse(json), sha: fileData.sha };
+}
+
+function requireToken(props) {
+  var token = props.getProperty('GH_TOKEN');
+  if (!token) throw new Error('GH_TOKEN לא מוגדר ב-Script Properties');
+  return token;
+}
+
+/* ---------- רשימת כתבות ושליפה לעריכה ---------- */
+function getArticles(props) {
+  var data = readArticles(requireToken(props));
+  if (!data) return jsonResponse({ success: false, message: 'קריאת הכתבות נכשלה' });
+  return jsonResponse({
+    success: true,
+    articles: data.articles.map(function (a) {
+      return { id: a.id, title: a.title, category: a.category, date: a.date };
+    })
+  });
+}
+
+function getArticle(req, props) {
+  var data = readArticles(requireToken(props));
+  if (!data) return jsonResponse({ success: false, message: 'קריאת הכתבות נכשלה' });
+  for (var i = 0; i < data.articles.length; i++) {
+    if (data.articles[i].id === req.id) {
+      return jsonResponse({ success: true, article: data.articles[i] });
+    }
+  }
+  return jsonResponse({ success: false, message: 'כתבה לא נמצאה' });
+}
+
+/* ---------- פרסום / עדכון כתבה ---------- */
+function saveArticle(req, props, isUpdate) {
+  var token = requireToken(props);
+  var article = req.article;
+  if (!article || !article.id || !article.title || !article.body) {
+    return jsonResponse({ success: false, message: 'לכתבה חסרים שדות חובה (מזהה, כותרת, גוף)' });
+  }
+  if (!/^[a-zA-Z0-9-]+$/.test(article.id)) {
+    return jsonResponse({ success: false, message: 'המזהה יכול להכיל רק אותיות באנגלית, מספרים ומקפים' });
+  }
+
+  var data = readArticles(token);
+  if (!data) return jsonResponse({ success: false, message: 'קריאת הכתבות מגיטהאב נכשלה' });
+
+  var idx = -1;
+  for (var i = 0; i < data.articles.length; i++) {
+    if (data.articles[i].id === article.id) { idx = i; break; }
+  }
+
+  if (isUpdate) {
+    if (idx === -1) return jsonResponse({ success: false, message: 'הכתבה לעדכון לא נמצאה' });
+    article.date = data.articles[idx].date; // שומרים את תאריך הפרסום המקורי
+    article.updatedAt = new Date().toISOString();
+    data.articles[idx] = article;
+  } else {
+    if (idx !== -1) return jsonResponse({ success: false, message: 'כבר קיימת כתבה עם המזהה "' + article.id + '" - בחרו מזהה אחר' });
+    data.articles.unshift(article);
+  }
+
+  var ok = ghPutFile(
+    token,
+    ARTICLES_PATH,
+    Utilities.base64Encode(JSON.stringify(data.articles, null, 2), Utilities.Charset.UTF_8),
+    (isUpdate ? 'עדכון כתבה: ' : 'כתבה חדשה: ') + article.title,
+    data.sha
+  );
+  if (!ok) return jsonResponse({ success: false, message: 'השמירה לגיטהאב נכשלה' });
+
+  return jsonResponse({
+    success: true,
+    message: isUpdate ? 'הכתבה עודכנה' : 'הכתבה פורסמה',
+    url: SITE_BASE + '/articles/' + article.id + '.html'
+  });
+}
+
+/* ---------- העלאת תמונה ---------- */
+function uploadImage(req, props) {
+  var token = requireToken(props);
+  if (!req.dataBase64) return jsonResponse({ success: false, message: 'לא התקבלה תמונה' });
+  var ext = String(req.mimeType || '').indexOf('png') > -1 ? 'png' : 'jpg';
+  var name = 'up-' + new Date().getTime() + '.' + ext;
+  var ok = ghPutFile(token, 'assets/uploads/' + name, req.dataBase64, 'העלאת תמונה: ' + name);
+  if (!ok) return jsonResponse({ success: false, message: 'העלאת התמונה לגיטהאב נכשלה' });
+  return jsonResponse({ success: true, url: SITE_BASE + '/assets/uploads/' + name });
+}
+
+/* ---------- יצירת תמונה עם Gemini ---------- */
+function generateImageAction(req, props) {
+  var key = props.getProperty('GEMINI_KEY');
+  if (!key) return jsonResponse({ success: false, message: 'GEMINI_KEY לא מוגדר' });
+  var token = requireToken(props);
+  var subject = req.title || req.topic;
+  if (!subject) return jsonResponse({ success: false, message: 'חסר נושא לתמונה (מלאו כותרת)' });
+
+  var prompt = 'Editorial magazine cover photo for an article. Topic (in Hebrew): "' + subject + '". ' +
+    (req.category ? 'Category: ' + req.category + '. ' : '') +
+    'Create a generic, symbolic, professional stock-photo style image representing the general theme only. ' +
+    'Strict rules: photorealistic, high quality, 16:9. NO text, NO letters, NO numbers, NO logos, NO flags, ' +
+    'NO recognizable faces, NO real people or politicians, NO graphic violence. Neutral and tasteful.';
+
+  var b64 = null;
+  for (var m = 0; m < IMAGE_MODELS.length && !b64; m++) {
+    b64 = tryImageModel(key, IMAGE_MODELS[m], prompt, true) || tryImageModel(key, IMAGE_MODELS[m], prompt, false);
+  }
+  if (!b64) return jsonResponse({ success: false, message: 'יצירת התמונה נכשלה - נסו שוב' });
+
+  var name = 'gen-' + new Date().getTime() + '.jpg';
+  var ok = ghPutFile(token, 'assets/uploads/' + name, b64, 'תמונת AI: ' + subject);
+  if (!ok) return jsonResponse({ success: false, message: 'שמירת התמונה לגיטהאב נכשלה' });
+
+  return jsonResponse({
+    success: true,
+    url: SITE_BASE + '/assets/uploads/' + name,
+    preview: 'data:image/jpeg;base64,' + b64
+  });
+}
+
+function tryImageModel(key, model, prompt, withAspect) {
+  try {
+    var genConfig = { responseModalities: ['IMAGE'] };
+    if (withAspect) genConfig.imageConfig = { aspectRatio: '16:9' };
+    var res = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { 'x-goog-api-key': key },
+      payload: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: genConfig
+      }),
+      muteHttpExceptions: true
+    });
+    if (res.getResponseCode() !== 200) return null;
+    var data = JSON.parse(res.getContentText());
+    var parts = (((data.candidates || [])[0] || {}).content || {}).parts || [];
+    for (var i = 0; i < parts.length; i++) {
+      if (parts[i].inlineData && parts[i].inlineData.data) return parts[i].inlineData.data;
+    }
+    return null;
+  } catch (err) {
+    return null;
   }
 }
 
@@ -99,7 +288,7 @@ function generateArticle(req, props) {
     }
   };
 
-  var res = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent', {
+  var res = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/' + TEXT_MODEL + ':generateContent', {
     method: 'post',
     contentType: 'application/json',
     headers: { 'x-goog-api-key': key },
@@ -115,62 +304,6 @@ function generateArticle(req, props) {
   var out = JSON.parse(text);
   if (!out.title || !out.body) return jsonResponse({ success: false, message: 'התקבלה תשובה חלקית מ-Gemini - נסו שוב' });
   return jsonResponse({ success: true, title: out.title, subtitle: out.subtitle || '', body: out.body });
-}
-
-/* ---------- פרסום כתבה לגיטהאב ---------- */
-function publishArticle(req, props) {
-  var token = props.getProperty('GH_TOKEN');
-  if (!token) return jsonResponse({ success: false, message: 'GH_TOKEN לא מוגדר ב-Script Properties' });
-
-  var article = req.article;
-  if (!article || !article.id || !article.title || !article.body) {
-    return jsonResponse({ success: false, message: 'לכתבה חסרים שדות חובה (מזהה, כותרת, גוף)' });
-  }
-  if (!/^[a-zA-Z0-9-]+$/.test(article.id)) {
-    return jsonResponse({ success: false, message: 'המזהה יכול להכיל רק אותיות באנגלית, מספרים ומקפים' });
-  }
-
-  var api = 'https://api.github.com/repos/' + REPO + '/contents/' + ARTICLES_PATH;
-  var ghHeaders = {
-    'Authorization': 'Bearer ' + token,
-    'Accept': 'application/vnd.github+json',
-    'X-GitHub-Api-Version': '2022-11-28'
-  };
-
-  var getRes = UrlFetchApp.fetch(api, { headers: ghHeaders, muteHttpExceptions: true });
-  if (getRes.getResponseCode() !== 200) {
-    return jsonResponse({ success: false, message: 'קריאת הכתבות מגיטהאב נכשלה (' + getRes.getResponseCode() + ')' });
-  }
-  var fileData = JSON.parse(getRes.getContentText());
-  var json = Utilities.newBlob(Utilities.base64Decode(fileData.content.replace(/\n/g, ''))).getDataAsString('UTF-8');
-  var articles = JSON.parse(json);
-
-  for (var i = 0; i < articles.length; i++) {
-    if (articles[i].id === article.id) {
-      return jsonResponse({ success: false, message: 'כבר קיימת כתבה עם המזהה "' + article.id + '" - בחרו מזהה אחר' });
-    }
-  }
-  articles.unshift(article);
-
-  var putRes = UrlFetchApp.fetch(api, {
-    method: 'put',
-    contentType: 'application/json',
-    headers: ghHeaders,
-    payload: JSON.stringify({
-      message: 'כתבה חדשה: ' + article.title,
-      content: Utilities.base64Encode(JSON.stringify(articles, null, 2), Utilities.Charset.UTF_8),
-      sha: fileData.sha
-    }),
-    muteHttpExceptions: true
-  });
-  if (putRes.getResponseCode() >= 300) {
-    return jsonResponse({ success: false, message: 'השמירה לגיטהאב נכשלה (' + putRes.getResponseCode() + ')' });
-  }
-  return jsonResponse({
-    success: true,
-    message: 'הכתבה פורסמה',
-    url: SITE_BASE + '/articles/' + article.id + '.html'
-  });
 }
 
 /* ---------- לידים ---------- */
