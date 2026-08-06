@@ -57,6 +57,16 @@
   <div id="status"></div>
 
   <section class="panel">
+    <h2>יצירת תוכן עם AI</h2>
+    <label>על מה הכתבה? (נושא + הנחיות חופשיות)</label>
+    <input type="text" id="ai-topic" placeholder="למשל: 7 טעויות נפוצות בביטוח רכב וכיצד להימנע מהן">
+    <div class="actions" style="margin-top:12px">
+      <button class="btn btn-primary" id="btn-generate">✨ כתוב לי את הכתבה</button>
+      <span class="hint">ממלא אוטומטית כותרת, כותרת משנה וגוף - ואפשר לערוך לפני פרסום. אם מסומן טופס לידים, הסיום יוביל להשארת פרטים.</span>
+    </div>
+  </section>
+
+  <section class="panel">
     <h2>פרטי הכתבה</h2>
     <label>כותרת ראשית *</label>
     <input type="text" id="f-title" placeholder="הכותרת שתופיע בראש הכתבה ובעמוד הבית">
@@ -127,6 +137,8 @@
       טוקן עם הרשאת Contents: Read and write לריפו. יצירה:
       GitHub ← Settings ← Developer settings ← Fine-grained tokens
     </div>
+    <label>Gemini API Key (ליצירת תוכן, נשמר רק בדפדפן הזה)</label>
+    <input type="password" id="gemini-key" placeholder="מפתח Gemini מ-AI Studio">
     <div class="actions" style="margin-top:16px">
       <button class="btn btn-primary" id="btn-publish">פרסום הכתבה לאתר</button>
       <button class="btn btn-ghost" id="btn-preview">תצוגה מקדימה</button>
@@ -163,11 +175,76 @@
     if (s.categories) fillCategories(s.categories.map(function (c) { return c.name; }));
   }).catch(function () {});
 
-  /* טוקן נשמר מקומית */
+  /* טוקן ומפתח נשמרים מקומית */
   try {
     var saved = localStorage.getItem('gh42token');
     if (saved) $('gh-token').value = saved;
+    var savedKey = localStorage.getItem('gemini42key');
+    if (savedKey) $('gemini-key').value = savedKey;
   } catch (e) {}
+
+  /* --- יצירת תוכן עם Gemini --- */
+  $('btn-generate').addEventListener('click', function () {
+    var topic = $('ai-topic').value.trim() || $('f-title').value.trim();
+    if (!topic) { showStatus('כתבו נושא לכתבה (או מלאו כותרת) כדי לייצר תוכן.', false); return; }
+    var key = $('gemini-key').value.trim();
+    if (!key) { showStatus('נדרש Gemini API Key (בחלונית הפרסום למטה, נשמר בדפדפן בלבד).', false); return; }
+    try { localStorage.setItem('gemini42key', key); } catch (e) {}
+
+    var leadOn = $('lead-on').checked;
+    var category = $('f-category').value;
+    var btn = this;
+    btn.disabled = true;
+    var origText = btn.textContent;
+    btn.textContent = 'כותב... (עד חצי דקה)';
+    showStatus('Gemini כותב את הכתבה...', true);
+
+    var system = 'אתה כותב תוכן בכיר במגזין דיגיטלי ישראלי בשם "מגזין 42". כתוב כתבת מגזין בעברית רהוטה על הנושא שתקבל.\n' +
+      'כללים מחייבים:\n' +
+      '- אל תמציא עובדות ספציפיות: בלי מספרים מדויקים, שמות של אנשים או חברות, מחקרים או ציטוטים פיקטיביים. ידע כללי ועצות מעשיות - כן.\n' +
+      '- title: כותרת מסקרנת ומזמינה אך מדויקת.\n' +
+      '- subtitle: משפט או שניים שמרחיבים את הכותרת.\n' +
+      '- body: גוף של 500-700 מילים בפורמט הבא: פסקאות מופרדות בשורה ריקה, כותרות ביניים בשורה שמתחילה ב-"## ", אפשר רשימות בשורות שמתחילות ב-"- " והדגשות עם **טקסט מודגש**.\n' +
+      '- סגנון מגזיני, ברור ופרקטי, פנייה לקוראים בגוף שני רבים.\n' +
+      '- הקטגוריה באתר: ' + category + '.\n' +
+      (leadOn ? '- בסוף הכתבה יופיע טופס השארת פרטים - סיים בפסקה קצרה שמובילה באופן טבעי להשארת פרטים.' : '');
+
+    fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=' + encodeURIComponent(key), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: system }] },
+        contents: [{ role: 'user', parts: [{ text: 'נושא הכתבה: ' + topic }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: 'OBJECT',
+            properties: {
+              title: { type: 'STRING' },
+              subtitle: { type: 'STRING' },
+              body: { type: 'STRING' }
+            },
+            required: ['title', 'subtitle', 'body']
+          },
+          maxOutputTokens: 8192
+        }
+      })
+    })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (res) {
+        if (!res.ok) throw new Error((res.data.error && res.data.error.message) || 'שגיאת API');
+        var parts = (res.data.candidates && res.data.candidates[0] && res.data.candidates[0].content && res.data.candidates[0].content.parts) || [];
+        var text = parts.map(function (p) { return p.text || ''; }).join('');
+        var out = JSON.parse(text);
+        if (!out.title || !out.body) throw new Error('התקבלה תשובה חלקית - נסו שוב');
+        $('f-title').value = out.title;
+        $('f-subtitle').value = out.subtitle || '';
+        $('f-body').value = out.body;
+        showStatus('הכתבה נכתבה! עברו על הטקסט, ערכו במידת הצורך - ואז פרסמו.', true);
+      })
+      .catch(function (err) { showStatus('שגיאה ביצירת התוכן: ' + err.message, false); })
+      .finally(function () { btn.disabled = false; btn.textContent = origText; });
+  });
 
   $('lead-on').addEventListener('change', function () {
     $('leadFields').style.display = this.checked ? 'block' : 'none';
