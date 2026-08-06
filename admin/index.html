@@ -50,6 +50,27 @@
   #preview .sub { color:#3d4550; margin-bottom:12px; }
   #preview .body p { margin-bottom:12px; }
   #preview .body h2 { font-size:18px; margin:14px 0 6px; }
+
+  /* ---- מסך נעילה ---- */
+  #app { display:none; }
+  #lock {
+    min-height: calc(100vh - 64px);
+    display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  .lock-card {
+    background:#fff; border-radius:16px; padding:36px 32px; width:100%; max-width:400px;
+    box-shadow:0 10px 40px rgba(16,20,24,.12); text-align:center;
+  }
+  .lock-card .mark { display:grid; place-items:center; width:56px; height:56px; background:var(--accent);
+    color:#fff; border-radius:14px; font-weight:900; font-size:24px; margin:0 auto 16px; }
+  .lock-card h2 { font-size:20px; font-weight:800; margin-bottom:6px; }
+  .lock-card p { font-size:14px; color:var(--muted); margin-bottom:18px; }
+  .lock-card input { text-align:center; font-size:17px; letter-spacing:2px; }
+  .lock-card button { width:100%; margin-top:12px; }
+  .lock-err { display:none; color:#c22733; font-size:13.5px; font-weight:600; margin-top:10px; }
+  #btn-logout { background:none; border:0; color:rgba(255,255,255,.7); font-family:inherit;
+    font-size:13px; cursor:pointer; margin-inline-start:auto; display:none; }
+  #btn-logout:hover { color:#fff; text-decoration:underline; }
   @media (max-width:640px){ .row { grid-template-columns:1fr; } }
 </style>
 </head>
@@ -57,16 +78,22 @@
 <header>
   <span class="mark">42</span>
   <h1>ניהול כתבות - מגזין 42</h1>
+  <button id="btn-logout">התנתקות 🔒</button>
 </header>
 
-<div class="wrap">
-  <div id="status"></div>
+<div id="lock">
+  <div class="lock-card">
+    <div class="mark">42</div>
+    <h2>אזור ניהול</h2>
+    <p>הזינו את סיסמת הניהול כדי להמשיך</p>
+    <input type="password" id="lock-pass" placeholder="••••••••" autocomplete="current-password">
+    <button class="btn btn-primary" id="btn-unlock">כניסה</button>
+    <div class="lock-err" id="lock-err"></div>
+  </div>
+</div>
 
-  <section class="panel">
-    <h2>סיסמת ניהול</h2>
-    <label>סיסמה (עובדת מכל דפדפן ומחשב, נשמרת מקומית לנוחות)</label>
-    <input type="password" id="admin-pass" placeholder="סיסמת הניהול של מגזין 42">
-  </section>
+<div class="wrap" id="app">
+  <div id="status"></div>
 
   <section class="panel">
     <h2>עריכת כתבה קיימת</h2>
@@ -185,6 +212,7 @@
   var statusEl = $('status');
   var editingId = null;
   var editingLead = null;
+  var adminPass = '';
 
   function showStatus(msg, ok, linkUrl, linkText) {
     statusEl.textContent = msg;
@@ -200,18 +228,81 @@
   }
 
   function api(action, payload) {
-    var pass = $('admin-pass').value.trim();
-    if (!pass) {
-      showStatus('נדרשת סיסמת ניהול (בחלונית העליונה).', false);
+    if (!adminPass) {
+      lockScreen();
       return Promise.reject(new Error('no-password'));
     }
-    try { localStorage.setItem('admin42pass', pass); } catch (e) {}
     return fetch(API, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(Object.assign({ action: action, password: pass }, payload || {}))
+      body: JSON.stringify(Object.assign({ action: action, password: adminPass }, payload || {}))
     }).then(function (r) { return r.json(); });
   }
+
+  /* ---------- מסך נעילה ---------- */
+  function unlockApp() {
+    $('lock').style.display = 'none';
+    $('app').style.display = 'grid';
+    $('btn-logout').style.display = 'block';
+  }
+
+  function lockScreen() {
+    adminPass = '';
+    try { localStorage.removeItem('admin42pass'); } catch (e) {}
+    $('app').style.display = 'none';
+    $('btn-logout').style.display = 'none';
+    $('lock').style.display = 'flex';
+  }
+
+  function verifyPass(pass, silent) {
+    return fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'checkAuth', password: pass })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (res.success) {
+          adminPass = pass;
+          try { localStorage.setItem('admin42pass', pass); } catch (e) {}
+          unlockApp();
+          return true;
+        }
+        if (!silent) {
+          var err = $('lock-err');
+          err.textContent = res.message || 'סיסמה שגויה';
+          err.style.display = 'block';
+        }
+        return false;
+      })
+      .catch(function () {
+        if (!silent) {
+          var err = $('lock-err');
+          err.textContent = 'בעיית תקשורת עם השרת - נסו שוב';
+          err.style.display = 'block';
+        }
+        return false;
+      });
+  }
+
+  $('btn-unlock').addEventListener('click', function () {
+    var pass = $('lock-pass').value.trim();
+    if (!pass) return;
+    var done = busy(this, 'בודק...');
+    verifyPass(pass, false).finally(done);
+  });
+
+  $('lock-pass').addEventListener('keydown', function (ev) {
+    if (ev.key === 'Enter') $('btn-unlock').click();
+  });
+
+  $('btn-logout').addEventListener('click', lockScreen);
+
+  /* כניסה שקטה אם הסיסמה כבר שמורה בדפדפן */
+  try {
+    var savedPass = localStorage.getItem('admin42pass');
+    if (savedPass) verifyPass(savedPass, true);
+  } catch (e) {}
 
   function busy(btn, text) {
     btn.disabled = true;
@@ -228,11 +319,6 @@
   fetch('../data/site.json').then(function (r) { return r.json(); }).then(function (s) {
     if (s.categories) fillCategories(s.categories.map(function (c) { return c.name; }));
   }).catch(function () {});
-
-  try {
-    var saved = localStorage.getItem('admin42pass');
-    if (saved) $('admin-pass').value = saved;
-  } catch (e) {}
 
   $('lead-on').addEventListener('change', function () {
     $('leadFields').style.display = this.checked ? 'block' : 'none';
