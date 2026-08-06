@@ -60,3 +60,6 @@ jobs:
       - name: פריסה ל-GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          timeout: 1800000   # עד 30 דקות - התור של Pages איטי לפעמים
+          error_count: 15
