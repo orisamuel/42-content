@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<meta name="description" content="{{DESCRIPTION}}">
+{{HEAD_EXTRA}}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ROOT}}assets/css/style.css">
+<link rel="icon" href="{{ROOT}}assets/img/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+<header class="site-header">
+  <div class="container header-inner">
+    <a class="logo" href="{{ROOT}}index.html" aria-label="מגזין 42 - דף הבית">
+      <span class="logo-mark">42</span>
+      <span class="logo-text">מגזין <b>42</b></span>
+    </a>
+    <button class="nav-toggle" aria-label="תפריט" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+    <nav class="main-nav" aria-label="ניווט ראשי">
+      {{NAV}}
+    </nav>
+  </div>
+</header>
+
+<main>
+{{CONTENT}}
+</main>
+
+<footer class="site-footer">
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <span class="logo-mark small">42</span>
+      <p>{{TAGLINE}}</p>
+    </div>
+    <nav class="footer-nav" aria-label="קישורים">
+      <a href="{{ROOT}}pages/about.html">אודות</a>
+      <a href="{{ROOT}}pages/privacy.html">מדיניות פרטיות</a>
+      <a href="{{ROOT}}pages/terms.html">תנאי שימוש</a>
+      <a href="{{ROOT}}pages/accessibility.html">הצהרת נגישות</a>
+    </nav>
+    <p class="footer-copy">© {{YEAR}} מגזין 42. כל הזכויות שמורות. חלק מהתכנים באתר מבוססים על דיווחים ממקורות חדשותיים המצוינים בגוף הכתבה.</p>
+  </div>
+</footer>
+<script>window.SITE={leadWebhook:"{{LEAD_WEBHOOK}}"};</script>
+<script src="{{ROOT}}assets/js/site.js" defer></script>
+</body>
+</html>

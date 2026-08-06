@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>ניהול כתבות | מגזין 42</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root { --brand:#0f1b2d; --accent:#e63946; --line:#e6e8ec; --muted:#6b7280; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Heebo',sans-serif; background:#f2f4f7; color:#101418; line-height:1.6; }
+  header { background:var(--brand); color:#fff; padding:14px 24px; display:flex; align-items:center; gap:12px; }
+  header .mark { display:grid; place-items:center; width:36px; height:36px; background:var(--accent); border-radius:9px; font-weight:900; }
+  header h1 { font-size:18px; font-weight:700; }
+  .wrap { max-width:860px; margin:24px auto; padding:0 16px; display:grid; gap:18px; }
+  .panel { background:#fff; border-radius:14px; padding:22px; box-shadow:0 2px 10px rgba(16,20,24,.06); }
+  .panel h2 { font-size:17px; font-weight:800; margin-bottom:14px; padding-bottom:8px; border-bottom:2px solid var(--line); }
+  label { display:block; font-size:13.5px; font-weight:600; margin:12px 0 4px; color:#3d4550; }
+  input[type=text], input[type=url], input[type=password], select, textarea {
+    width:100%; padding:10px 12px; border:1px solid #d4d8de; border-radius:9px;
+    font-family:inherit; font-size:15px; background:#fff;
+  }
+  input:focus, textarea:focus, select:focus { outline:2px solid rgba(230,57,70,.35); border-color:var(--accent); }
+  textarea { min-height:260px; resize:vertical; }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .hint { font-size:12px; color:var(--muted); margin-top:3px; }
+  .check { display:flex; align-items:center; gap:8px; font-size:14.5px; margin:6px 0; font-weight:500; }
+  .check input { width:17px; height:17px; accent-color:var(--accent); }
+  .btn { display:inline-block; padding:12px 22px; border:0; border-radius:10px; font-family:inherit;
+    font-size:15.5px; font-weight:700; cursor:pointer; transition:.15s; }
+  .btn-primary { background:var(--accent); color:#fff; }
+  .btn-primary:hover { background:#c22733; }
+  .btn-ghost { background:#eef0f3; color:#101418; }
+  .btn-ghost:hover { background:#e2e5ea; }
+  .btn:disabled { opacity:.55; cursor:wait; }
+  .actions { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  #status { padding:12px 16px; border-radius:10px; font-weight:600; display:none; font-size:14.5px; }
+  #status.ok { display:block; background:#e7f8f0; color:#0e7c5a; border:1px solid #b5e8d3; }
+  #status.err { display:block; background:#fdeaec; color:#c22733; border:1px solid #f5c2c7; white-space:pre-wrap; }
+  #leadFields { display:none; padding:14px; background:#f7f8fa; border-radius:10px; margin-top:10px; }
+  #preview { display:none; border-top:2px dashed var(--line); margin-top:18px; padding-top:18px; }
+  #preview h3 { font-size:22px; font-weight:900; margin-bottom:6px; }
+  #preview .sub { color:#3d4550; margin-bottom:12px; }
+  #preview .body p { margin-bottom:12px; }
+  #preview .body h2 { font-size:18px; margin:14px 0 6px; }
+  @media (max-width:640px){ .row { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <span class="mark">42</span>
+  <h1>ניהול כתבות - מגזין 42</h1>
+</header>
+
+<div class="wrap">
+  <div id="status"></div>
+
+  <section class="panel">
+    <h2>פרטי הכתבה</h2>
+    <label>כותרת ראשית *</label>
+    <input type="text" id="f-title" placeholder="הכותרת שתופיע בראש הכתבה ובעמוד הבית">
+    <label>כותרת משנה</label>
+    <input type="text" id="f-subtitle" placeholder="משפט-שניים שמרחיבים את הכותרת">
+    <div class="row">
+      <div>
+        <label>קטגוריה</label>
+        <select id="f-category"></select>
+      </div>
+      <div>
+        <label>שם כותב/ת</label>
+        <input type="text" id="f-author" value="מערכת 42">
+      </div>
+    </div>
+    <label>תמונה ראשית (קישור URL)</label>
+    <input type="url" id="f-image" placeholder="https://...">
+    <div class="row">
+      <div>
+        <label>קרדיט תמונה</label>
+        <input type="text" id="f-credit" placeholder="למשל: Shutterstock">
+      </div>
+      <div>
+        <label>מזהה כתבה (לכתובת ה-URL)</label>
+        <input type="text" id="f-slug" placeholder="נוצר אוטומטית">
+        <div class="hint">אותיות באנגלית, מספרים ומקפים בלבד</div>
+      </div>
+    </div>
+    <label class="check" style="margin-top:14px"><input type="checkbox" id="f-featured"> כתבה ראשית (תוצג בראש עמוד הבית)</label>
+    <label>גוף הכתבה *</label>
+    <textarea id="f-body" placeholder="כתבו כאן את הכתבה. פסקאות מופרדות בשורה ריקה.&#10;&#10;## כותרת ביניים&#10;&#10;**טקסט מודגש**, [קישור](https://example.com)&#10;&#10;- פריט ברשימה&#10;- פריט נוסף"></textarea>
+  </section>
+
+  <section class="panel">
+    <h2>טופס לידים</h2>
+    <label class="check"><input type="checkbox" id="lead-on"> הוסף טופס איסוף לידים לכתבה</label>
+    <div id="leadFields">
+      <label>כותרת הטופס</label>
+      <input type="text" id="l-title" placeholder="רוצים לשמוע עוד? השאירו פרטים">
+      <label>משפט הסבר</label>
+      <input type="text" id="l-subtitle" placeholder="נציג יחזור אליכם ללא התחייבות">
+      <div class="row">
+        <div>
+          <label>טקסט הכפתור</label>
+          <input type="text" id="l-button" value="שלחו לי פרטים">
+        </div>
+        <div>
+          <label>מזהה קמפיין</label>
+          <input type="text" id="l-campaign" placeholder="למשל: solar-2026">
+          <div class="hint">יופיע בגיליון הלידים לזיהוי מקור הפנייה</div>
+        </div>
+      </div>
+      <label>שדות בטופס</label>
+      <label class="check"><input type="checkbox" class="l-field" value="fullname|שם מלא|text" checked> שם מלא</label>
+      <label class="check"><input type="checkbox" class="l-field" value="phone|טלפון נייד|tel" checked> טלפון</label>
+      <label class="check"><input type="checkbox" class="l-field" value="email|דוא&quot;ל|email"> דוא"ל</label>
+      <label class="check"><input type="checkbox" class="l-field" value="city|עיר מגורים|text"> עיר</label>
+      <label>הודעת תודה לאחר שליחה</label>
+      <input type="text" id="l-success" value="תודה! הפרטים נקלטו בהצלחה, ניצור איתכם קשר בהקדם.">
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>פרסום</h2>
+    <label>GitHub Token (נשמר רק בדפדפן הזה)</label>
+    <input type="password" id="gh-token" placeholder="ghp_... או github_pat_...">
+    <div class="hint">
+      טוקן עם הרשאת Contents: Read and write לריפו. יצירה:
+      GitHub ← Settings ← Developer settings ← Fine-grained tokens
+    </div>
+    <div class="actions" style="margin-top:16px">
+      <button class="btn btn-primary" id="btn-publish">פרסום הכתבה לאתר</button>
+      <button class="btn btn-ghost" id="btn-preview">תצוגה מקדימה</button>
+      <button class="btn btn-ghost" id="btn-json">העתקת JSON</button>
+    </div>
+    <div id="preview"><h3></h3><p class="sub"></p><div class="body"></div></div>
+  </section>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var REPO = 'orisamuel/42-content';
+  var FILE = 'data/articles.json';
+  var CATEGORIES = ['חדשות', 'כלכלה', 'צרכנות', 'טכנולוגיה', 'לייפסטייל', 'ספורט'];
+
+  var $ = function (id) { return document.getElementById(id); };
+  var statusEl = $('status');
+
+  function showStatus(msg, ok) {
+    statusEl.textContent = msg;
+    statusEl.className = ok ? 'ok' : 'err';
+    statusEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  /* קטגוריות - מנסה לטעון מהאתר, אחרת רשימה קבועה */
+  function fillCategories(list) {
+    $('f-category').innerHTML = list.map(function (c) {
+      return '<option>' + c + '</option>';
+    }).join('');
+  }
+  fillCategories(CATEGORIES);
+  fetch('../data/site.json').then(function (r) { return r.json(); }).then(function (s) {
+    if (s.categories) fillCategories(s.categories.map(function (c) { return c.name; }));
+  }).catch(function () {});
+
+  /* טוקן נשמר מקומית */
+  try {
+    var saved = localStorage.getItem('gh42token');
+    if (saved) $('gh-token').value = saved;
+  } catch (e) {}
+
+  $('lead-on').addEventListener('change', function () {
+    $('leadFields').style.display = this.checked ? 'block' : 'none';
+  });
+
+  function makeSlug() {
+    var d = new Date();
+    var pad = function (n) { return String(n).padStart(2, '0'); };
+    return 'a-' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes());
+  }
+
+  function buildArticle() {
+    var title = $('f-title').value.trim();
+    var body = $('f-body').value.trim();
+    if (!title || !body) { showStatus('חסרים שדות חובה: כותרת וגוף הכתבה.', false); return null; }
+
+    var slug = $('f-slug').value.trim() || makeSlug();
+    if (!/^[a-z0-9-]+$/i.test(slug)) { showStatus('המזהה יכול להכיל רק אותיות באנגלית, מספרים ומקפים.', false); return null; }
+
+    var article = {
+      id: slug,
+      title: title,
+      subtitle: $('f-subtitle').value.trim(),
+      category: $('f-category').value,
+      image: $('f-image').value.trim(),
+      imageCredit: $('f-credit').value.trim(),
+      author: $('f-author').value.trim() || 'מערכת 42',
+      date: new Date().toISOString(),
+      featured: $('f-featured').checked,
+      body: body,
+      lead: null
+    };
+
+    if ($('lead-on').checked) {
+      var fields = [];
+      document.querySelectorAll('.l-field:checked').forEach(function (cb) {
+        var parts = cb.value.split('|');
+        fields.push({ name: parts[0], label: parts[1], type: parts[2], required: parts[0] !== 'email' && parts[0] !== 'city' });
+      });
+      article.lead = {
+        enabled: true,
+        position: 'bottom',
+        title: $('l-title').value.trim() || 'השאירו פרטים ונחזור אליכם',
+        subtitle: $('l-subtitle').value.trim(),
+        buttonText: $('l-button').value.trim() || 'שליחה',
+        successMessage: $('l-success').value.trim(),
+        campaign: $('l-campaign').value.trim() || slug,
+        fields: fields
+      };
+    }
+    return article;
+  }
+
+  /* קידוד/פענוח UTF-8 <-> Base64 */
+  function b64ToUtf8(b64) {
+    var bin = atob(b64.replace(/\n/g, ''));
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder('utf-8').decode(bytes);
+  }
+  function utf8ToB64(str) {
+    var bytes = new TextEncoder().encode(str);
+    var bin = '';
+    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }
+
+  $('btn-publish').addEventListener('click', function () {
+    var article = buildArticle();
+    if (!article) return;
+    var token = $('gh-token').value.trim();
+    if (!token) { showStatus('נדרש GitHub Token כדי לפרסם ישירות. אפשר גם להעתיק JSON ולהדביק ידנית.', false); return; }
+    try { localStorage.setItem('gh42token', token); } catch (e) {}
+
+    var btn = this;
+    btn.disabled = true;
+    showStatus('מפרסם...', true);
+
+    var api = 'https://api.github.com/repos/' + REPO + '/contents/' + FILE;
+    var headers = {
+      'Authorization': 'Bearer ' + token,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    };
+
+    fetch(api, { headers: headers })
+      .then(function (r) {
+        if (!r.ok) throw new Error('קריאת הקובץ נכשלה (' + r.status + ') - בדקו את הטוקן וההרשאות');
+        return r.json();
+      })
+      .then(function (data) {
+        var articles = JSON.parse(b64ToUtf8(data.content));
+        if (articles.some(function (a) { return a.id === article.id; })) {
+          throw new Error('כבר קיימת כתבה עם המזהה "' + article.id + '" - בחרו מזהה אחר.');
+        }
+        articles.unshift(article);
+        return fetch(api, {
+          method: 'PUT',
+          headers: headers,
+          body: JSON.stringify({
+            message: 'כתבה חדשה: ' + article.title,
+            content: utf8ToB64(JSON.stringify(articles, null, 2)),
+            sha: data.sha
+          })
+        });
+      })
+      .then(function (r) {
+        if (!r.ok) throw new Error('שמירת הקובץ נכשלה (' + r.status + ')');
+        showStatus('הכתבה פורסמה! האתר יתעדכן תוך 2-1 דקות (GitHub Actions בונה את הדפים ומפרסם).', true);
+        $('f-title').value = ''; $('f-subtitle').value = ''; $('f-body').value = ''; $('f-slug').value = '';
+      })
+      .catch(function (err) { showStatus('שגיאה: ' + err.message, false); })
+      .finally(function () { btn.disabled = false; });
+  });
+
+  $('btn-json').addEventListener('click', function () {
+    var article = buildArticle();
+    if (!article) return;
+    navigator.clipboard.writeText(JSON.stringify(article, null, 2)).then(function () {
+      showStatus('ה-JSON הועתק. הדביקו אותו בראש המערך בקובץ data/articles.json בגיטהאב.', true);
+    });
+  });
+
+  $('btn-preview').addEventListener('click', function () {
+    var article = buildArticle();
+    if (!article) return;
+    var p = $('preview');
+    p.style.display = 'block';
+    p.querySelector('h3').textContent = article.title;
+    p.querySelector('.sub').textContent = article.subtitle;
+    p.querySelector('.body').innerHTML = article.body.split(/\n{2,}/).map(function (b) {
+      b = b.trim();
+      var div = document.createElement('div');
+      if (b.indexOf('## ') === 0) { div.innerHTML = '<h2></h2>'; div.firstChild.textContent = b.slice(3); }
+      else { div.innerHTML = '<p></p>'; div.firstChild.textContent = b; }
+      return div.innerHTML;
+    }).join('');
+  });
+})();
+</script>
+</body>
+</html>

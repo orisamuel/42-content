@@ -1,0 +1,45 @@
+name: בניית האתר
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'data/articles.json'
+      - 'data/site.json'
+      - 'templates/**'
+      - 'content/**'
+      - 'assets/**'
+      - 'scripts/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: site-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: בניית האתר
+        run: node scripts/build.mjs
+
+      - name: קומיט ופרסום
+        run: |
+          git config user.name "42-bot"
+          git config user.email "actions@github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "אין שינויים"
+          else
+            git commit -m "בנייה מחדש של דפי האתר [skip ci]"
+            git push
+          fi

@@ -1,0 +1,354 @@
+/* ===== מגזין 42 - עיצוב ראשי ===== */
+:root {
+  --ink: #101418;
+  --ink-soft: #3d4550;
+  --muted: #6b7280;
+  --line: #e6e8ec;
+  --bg: #ffffff;
+  --bg-soft: #f5f6f8;
+  --brand: #0f1b2d;
+  --accent: #e63946;
+  --accent-dark: #c22733;
+  --cat-news: #e63946;
+  --cat-economy: #0e7c5a;
+  --cat-consumer: #b45309;
+  --cat-tech: #2563eb;
+  --cat-lifestyle: #9333ea;
+  --cat-sport: #0891b2;
+  --radius: 14px;
+  --shadow: 0 2px 10px rgba(16, 20, 24, .07);
+  --shadow-hover: 0 10px 28px rgba(16, 20, 24, .14);
+  --max: 1160px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Heebo', -apple-system, 'Segoe UI', Arial, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+img { max-width: 100%; display: block; }
+a { color: inherit; text-decoration: none; }
+
+.container { max-width: var(--max); margin: 0 auto; padding: 0 20px; }
+
+/* ===== Header ===== */
+.site-header {
+  background: var(--brand);
+  color: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, .25);
+}
+.header-inner {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  min-height: 64px;
+}
+.logo { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.logo-mark {
+  display: grid;
+  place-items: center;
+  width: 40px; height: 40px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 900;
+  font-size: 19px;
+  border-radius: 10px;
+  letter-spacing: -.5px;
+}
+.logo-mark.small { width: 32px; height: 32px; font-size: 15px; border-radius: 8px; }
+.logo-text { font-size: 20px; font-weight: 300; color: #fff; }
+.logo-text b { font-weight: 800; }
+
+.main-nav { display: flex; gap: 4px; flex-wrap: wrap; }
+.main-nav a {
+  color: rgba(255, 255, 255, .85);
+  font-weight: 500;
+  font-size: 15.5px;
+  padding: 8px 13px;
+  border-radius: 8px;
+  transition: background .15s, color .15s;
+}
+.main-nav a:hover, .main-nav a.active { background: rgba(255, 255, 255, .12); color: #fff; }
+
+.nav-toggle { display: none; background: none; border: 0; cursor: pointer; padding: 8px; margin-inline-start: auto; }
+.nav-toggle span { display: block; width: 22px; height: 2px; background: #fff; margin: 5px 0; border-radius: 2px; transition: .2s; }
+
+/* ===== Hero ===== */
+.hero { padding: 28px 0 8px; }
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 22px;
+}
+.hero-side { display: grid; gap: 22px; }
+
+.card {
+  position: relative;
+  display: block;
+  background: var(--bg);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  transition: transform .2s, box-shadow .2s;
+}
+.card:hover { transform: translateY(-3px); box-shadow: var(--shadow-hover); }
+
+.card-hero { min-height: 420px; }
+.card-hero .card-img, .card-side .card-img { position: absolute; inset: 0; }
+.card-hero img, .card-side img { width: 100%; height: 100%; object-fit: cover; }
+.card-hero .card-body, .card-side .card-body {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  padding: 26px 24px 22px;
+  background: linear-gradient(0deg, rgba(10, 14, 20, .92) 0%, rgba(10, 14, 20, .55) 60%, transparent 100%);
+  color: #fff;
+}
+.card-hero h2 { font-size: 28px; font-weight: 800; line-height: 1.3; margin: 8px 0 6px; }
+.card-hero p { color: rgba(255, 255, 255, .85); font-size: 15.5px; }
+.card-side { min-height: 199px; }
+.card-side h3 { font-size: 18px; font-weight: 700; line-height: 1.35; margin-top: 6px; }
+
+/* ===== Category chip ===== */
+.chip {
+  display: inline-block;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  letter-spacing: .2px;
+}
+.chip[data-cat="חדשות"] { background: var(--cat-news); }
+.chip[data-cat="כלכלה"] { background: var(--cat-economy); }
+.chip[data-cat="צרכנות"] { background: var(--cat-consumer); }
+.chip[data-cat="טכנולוגיה"] { background: var(--cat-tech); }
+.chip[data-cat="לייפסטייל"] { background: var(--cat-lifestyle); }
+.chip[data-cat="ספורט"] { background: var(--cat-sport); }
+
+/* ===== Sections & grid ===== */
+.section { padding: 34px 0 10px; }
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  padding-bottom: 10px;
+  border-bottom: 3px solid var(--ink);
+}
+.section-head h2 { font-size: 24px; font-weight: 800; }
+.section-head a { font-size: 14px; font-weight: 600; color: var(--accent-dark); }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
+  padding-bottom: 26px;
+}
+.card-grid .card-img { aspect-ratio: 16 / 9; overflow: hidden; }
+.card-grid img { width: 100%; height: 100%; object-fit: cover; transition: transform .3s; }
+.card-grid:hover img { transform: scale(1.04); }
+.card-grid .card-body { padding: 16px 18px 18px; }
+.card-grid h3 { font-size: 17.5px; font-weight: 700; line-height: 1.4; margin: 8px 0 6px; }
+.card-grid p { font-size: 14px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card-meta { font-size: 12.5px; color: var(--muted); margin-top: 10px; display: flex; gap: 8px; align-items: center; }
+
+/* ===== Article page ===== */
+.article-wrap { max-width: 760px; margin: 0 auto; padding: 34px 20px 20px; }
+.breadcrumb { font-size: 13.5px; color: var(--muted); margin-bottom: 14px; }
+.breadcrumb a:hover { color: var(--accent-dark); }
+.article-head h1 { font-size: 34px; font-weight: 900; line-height: 1.25; margin: 12px 0 10px; }
+.article-head .subtitle { font-size: 19px; color: var(--ink-soft); font-weight: 400; line-height: 1.5; }
+.article-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  align-items: center;
+  font-size: 14px;
+  color: var(--muted);
+  margin: 16px 0;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.article-hero { border-radius: var(--radius); overflow: hidden; margin: 6px 0 4px; }
+.img-credit { font-size: 12px; color: var(--muted); margin: 6px 2px 0; }
+
+.article-body { font-size: 17.5px; margin-top: 22px; }
+.article-body p { margin-bottom: 18px; }
+.article-body h2 { font-size: 24px; font-weight: 800; margin: 30px 0 12px; }
+.article-body h3 { font-size: 20px; font-weight: 700; margin: 24px 0 10px; }
+.article-body ul, .article-body ol { margin: 0 22px 18px 0; }
+.article-body li { margin-bottom: 8px; }
+.article-body a { color: var(--accent-dark); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.article-body blockquote {
+  border-inline-start: 4px solid var(--accent);
+  background: var(--bg-soft);
+  padding: 14px 18px;
+  border-radius: 8px;
+  margin-bottom: 18px;
+  font-weight: 500;
+}
+.article-body img { border-radius: 10px; margin: 6px 0 18px; }
+
+.source-note {
+  font-size: 14px;
+  color: var(--muted);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin: 26px 0 8px;
+}
+.source-note a { color: var(--accent-dark); font-weight: 600; }
+
+/* ===== Share ===== */
+.share-row { display: flex; gap: 10px; align-items: center; margin: 22px 0; }
+.share-row span { font-size: 14px; font-weight: 600; color: var(--muted); }
+.share-btn {
+  display: grid;
+  place-items: center;
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  transition: .15s;
+  font-size: 16px;
+}
+.share-btn:hover { background: var(--brand); color: #fff; border-color: var(--brand); }
+
+/* ===== Lead form ===== */
+.lead-box {
+  background: linear-gradient(135deg, #0f1b2d 0%, #1c3252 100%);
+  color: #fff;
+  border-radius: var(--radius);
+  padding: 30px 28px;
+  margin: 34px 0;
+  box-shadow: var(--shadow-hover);
+}
+.lead-box h3 { font-size: 23px; font-weight: 800; margin-bottom: 6px; }
+.lead-box .lead-sub { color: rgba(255, 255, 255, .8); font-size: 15px; margin-bottom: 18px; }
+.lead-form { display: grid; gap: 12px; }
+.lead-form input, .lead-form select {
+  width: 100%;
+  padding: 13px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, .25);
+  background: rgba(255, 255, 255, .95);
+  font-family: inherit;
+  font-size: 15.5px;
+  color: var(--ink);
+}
+.lead-form input:focus { outline: 3px solid rgba(230, 57, 70, .45); border-color: var(--accent); }
+.lead-form button {
+  padding: 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background .15s, transform .1s;
+}
+.lead-form button:hover { background: var(--accent-dark); }
+.lead-form button:active { transform: scale(.98); }
+.lead-form button:disabled { opacity: .6; cursor: wait; }
+.lead-privacy { font-size: 12px; color: rgba(255, 255, 255, .6); text-align: center; }
+.lead-privacy a { text-decoration: underline; }
+.lead-success {
+  display: none;
+  background: rgba(31, 122, 90, .25);
+  border: 1px solid #2ecc8f;
+  color: #d7ffee;
+  border-radius: 10px;
+  padding: 16px;
+  text-align: center;
+  font-weight: 600;
+}
+.lead-error {
+  display: none;
+  background: rgba(230, 57, 70, .18);
+  border: 1px solid var(--accent);
+  color: #ffd7da;
+  border-radius: 10px;
+  padding: 12px;
+  text-align: center;
+  font-size: 14px;
+}
+
+/* ===== Related + ads ===== */
+.related { padding: 10px 0 30px; }
+.ad-slot {
+  min-height: 90px;
+  display: grid;
+  place-items: center;
+  background: var(--bg-soft);
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  color: #b8bdc4;
+  font-size: 12px;
+  margin: 26px 0;
+}
+
+/* ===== Static pages ===== */
+.page-wrap { max-width: 760px; margin: 0 auto; padding: 40px 20px 30px; }
+.page-wrap h1 { font-size: 32px; font-weight: 900; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 3px solid var(--ink); }
+.page-wrap h2 { font-size: 22px; font-weight: 800; margin: 26px 0 10px; }
+.page-wrap p, .page-wrap li { font-size: 16.5px; margin-bottom: 12px; color: var(--ink-soft); }
+.page-wrap ul { margin: 0 22px 14px 0; }
+
+/* ===== Footer ===== */
+.site-footer {
+  background: var(--brand);
+  color: rgba(255, 255, 255, .75);
+  margin-top: 40px;
+  padding: 34px 0 26px;
+}
+.footer-inner { display: grid; gap: 16px; }
+.footer-brand { display: flex; align-items: center; gap: 12px; font-size: 15px; }
+.footer-nav { display: flex; flex-wrap: wrap; gap: 18px; font-size: 14px; }
+.footer-nav a:hover { color: #fff; text-decoration: underline; }
+.footer-copy { font-size: 12.5px; color: rgba(255, 255, 255, .45); }
+
+/* ===== Responsive ===== */
+@media (max-width: 900px) {
+  .hero-grid { grid-template-columns: 1fr; }
+  .card-hero { min-height: 320px; }
+  .card-side { min-height: 180px; }
+  .hero-side { grid-template-columns: 1fr 1fr; }
+  .grid { grid-template-columns: repeat(2, 1fr); }
+  .article-head h1 { font-size: 27px; }
+}
+
+@media (max-width: 620px) {
+  .nav-toggle { display: block; }
+  .main-nav {
+    display: none;
+    position: absolute;
+    top: 64px;
+    inset-inline: 0;
+    background: var(--brand);
+    flex-direction: column;
+    padding: 10px 20px 16px;
+    box-shadow: 0 12px 20px rgba(0, 0, 0, .3);
+  }
+  .main-nav.open { display: flex; }
+  .hero-side { grid-template-columns: 1fr; }
+  .grid { grid-template-columns: 1fr; }
+  .card-hero h2 { font-size: 22px; }
+  .article-head h1 { font-size: 24px; }
+  .article-body { font-size: 16.5px; }
+  .lead-box { padding: 24px 18px; }
+}

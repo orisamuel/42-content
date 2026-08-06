@@ -1,0 +1,26 @@
+{
+  "siteName": "42",
+  "siteTitle": "מגזין 42",
+  "tagline": "התוכן שמעניין אתכם באמת",
+  "description": "מגזין 42 - חדשות, כלכלה, צרכנות, טכנולוגיה ולייפסטייל. כל התוכן שמעניין אתכם במקום אחד.",
+  "baseUrl": "https://orisamuel.github.io/42-content",
+  "leadWebhook": "",
+  "categories": [
+    { "name": "חדשות", "slug": "news" },
+    { "name": "כלכלה", "slug": "economy" },
+    { "name": "צרכנות", "slug": "consumer" },
+    { "name": "טכנולוגיה", "slug": "tech" },
+    { "name": "לייפסטייל", "slug": "lifestyle" },
+    { "name": "ספורט", "slug": "sport" }
+  ],
+  "feeds": [
+    { "name": "ynet חדשות", "url": "https://www.ynet.co.il/Integration/StoryRss2.xml", "category": "חדשות" },
+    { "name": "ynet כלכלה", "url": "https://www.ynet.co.il/Integration/StoryRss6.xml", "category": "כלכלה" },
+    { "name": "ynet ספורט", "url": "https://www.ynet.co.il/Integration/StoryRss3.xml", "category": "ספורט" },
+    { "name": "וואלה חדשות", "url": "https://rss.walla.co.il/feed/1", "category": "חדשות" },
+    { "name": "מעריב", "url": "https://www.maariv.co.il/Rss/RssChadashot", "category": "חדשות" },
+    { "name": "גיקטיים", "url": "https://www.geektime.co.il/feed/", "category": "טכנולוגיה" }
+  ],
+  "maxRssArticles": 36,
+  "rssPerFeed": 8
+}
