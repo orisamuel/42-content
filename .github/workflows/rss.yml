@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 concurrency:
   group: site-build
@@ -15,6 +17,9 @@ concurrency:
 jobs:
   rss:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -32,7 +37,7 @@ jobs:
       - name: בניית האתר
         run: node scripts/build.mjs
 
-      - name: קומיט ופרסום
+      - name: קומיט של התוכן החדש
         run: |
           git config user.name "42-bot"
           git config user.email "actions@github.com"
@@ -43,3 +48,13 @@ jobs:
             git commit -m "עדכון תוכן אוטומטי מ-RSS [skip ci]"
             git push
           fi
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - name: פריסה ל-GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
