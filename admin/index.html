@@ -106,8 +106,11 @@
   </section>
 
   <div id="editBar">
-    <span>✏️ עורכים עכשיו את: <b id="edit-title"></b></span>
-    <button class="btn btn-ghost btn-sm" id="btn-cancel-edit">ביטול - חזרה לכתבה חדשה</button>
+    <span>✏️ עורכים עכשיו את: <b id="edit-title"></b><span id="edit-type"></span></span>
+    <span class="actions">
+      <button class="btn btn-primary btn-sm" id="btn-promote" style="display:none">📌 הפוך לכתבה קבועה</button>
+      <button class="btn btn-ghost btn-sm" id="btn-cancel-edit">ביטול - חזרה לכתבה חדשה</button>
+    </span>
   </div>
 
   <section class="panel">
@@ -213,6 +216,7 @@
   var editingId = null;
   var editingLead = null;
   var editingOriginal = null;
+  var editingType = 'manual';
   var adminPass = '';
 
   function showStatus(msg, ok, linkUrl, linkText) {
@@ -379,10 +383,15 @@
         $('lead-on').checked = false;
         $('leadFields').style.display = 'none';
       }
-      $('edit-title').textContent = a.title.slice(0, 50);
+      $('edit-title').textContent = a.title.slice(0, 45);
+      editingType = res.type || 'manual';
+      $('edit-type').textContent = editingType === 'rss' ? ' (כתבת RSS - מתחלפת בסבב היומי)' : '';
+      $('btn-promote').style.display = editingType === 'rss' ? 'inline-block' : 'none';
       $('editBar').className = 'on';
       $('btn-publish').textContent = 'שמירת השינויים';
-      showStatus('הכתבה נטענה לעריכה. ערכו ולחצו "שמירת השינויים".', true);
+      showStatus(editingType === 'rss'
+        ? 'כתבת RSS נטענה לעריכה. שימו לב: היא תתחלף בסבב היומי - לחצו "הפוך לכתבה קבועה" כדי לשמור אותה לתמיד.'
+        : 'הכתבה נטענה לעריכה. ערכו ולחצו "שמירת השינויים".', true);
     }).catch(function (err) {
       if (err.message !== 'no-password') showStatus('שגיאה: ' + err.message, false);
     }).finally(done);
@@ -392,10 +401,36 @@
     editingId = null;
     editingLead = null;
     editingOriginal = null;
+    editingType = 'manual';
     $('editBar').className = '';
+    $('btn-promote').style.display = 'none';
     $('f-slug').disabled = false;
     $('btn-publish').textContent = 'פרסום הכתבה לאתר';
   }
+
+  /* ---------- הפיכת כתבת RSS לקבועה ---------- */
+  $('btn-promote').addEventListener('click', function () {
+    if (!editingId || editingType !== 'rss') return;
+    if (!confirm('להפוך את הכתבה לקבועה?\n\nהיא תעבור לכתבות הקבועות (עם כתובת URL חדשה וקריאה) ולא תתחלף יותר בסבב היומי.')) return;
+
+    var done = busy(this, 'מעביר...');
+    showStatus('מעביר את הכתבה לכתבות הקבועות...', true);
+
+    api('promoteArticle', { id: editingId })
+      .then(function (res) {
+        if (!res.success) throw new Error(res.message);
+        showStatus('הכתבה הפכה לקבועה! היא כבר לא תתחלף. הכתובת החדשה שלה:', true, res.url, res.id + '.html');
+        editingId = res.id;
+        editingType = 'manual';
+        $('f-slug').value = res.id;
+        $('edit-type').textContent = ' (כתבה קבועה)';
+        $('btn-promote').style.display = 'none';
+      })
+      .catch(function (err) {
+        if (err.message !== 'no-password') showStatus('שגיאה: ' + err.message, false);
+      })
+      .finally(done);
+  });
 
   $('btn-cancel-edit').addEventListener('click', function () {
     exitEditMode();

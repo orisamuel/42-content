@@ -61,6 +61,8 @@ function doPost(e) {
         return getArticles(props);
       case 'getArticle':
         return getArticle(req, props);
+      case 'promoteArticle':
+        return promoteArticle(req, props);
       case 'uploadImage':
         return uploadImage(req, props);
       case 'generateImage':
@@ -212,6 +214,82 @@ function saveArticle(req, props, isUpdate) {
     success: true,
     message: isUpdate ? 'הכתבה עודכנה' : 'הכתבה פורסמה',
     url: SITE_BASE + '/articles/' + article.id + '.html'
+  });
+}
+
+/* ---------- הפיכת כתבת RSS לכתבה קבועה ---------- */
+function promoteArticle(req, props) {
+  var token = requireToken(props);
+  if (!req.id) return jsonResponse({ success: false, message: 'חסר מזהה כתבה' });
+
+  var rss = readJsonFile(token, RSS_PATH);
+  if (!rss) return jsonResponse({ success: false, message: 'קריאת כתבות ה-RSS נכשלה' });
+  var rssIdx = findIndexById(rss.articles, req.id);
+  if (rssIdx === -1) {
+    return jsonResponse({ success: false, message: 'הכתבה אינה כתבת RSS (אולי היא כבר קבועה?)' });
+  }
+
+  var manual = readJsonFile(token, ARTICLES_PATH);
+  if (!manual) return jsonResponse({ success: false, message: 'קריאת הכתבות הקבועות נכשלה' });
+
+  var article = rss.articles[rssIdx];
+
+  /* מזהה חדש: לפי הכותרת אם אפשר, אחרת חתימת זמן. אנגלית/מספרים/מקפים בלבד */
+  var base = String(req.newId || article.title || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+  if (base.length < 3) {
+    base = 'perm-' + Utilities.formatDate(new Date(), 'Asia/Jerusalem', 'yyyyMMdd-HHmm');
+  }
+  var newId = base;
+  var n = 2;
+  while (findIndexById(manual.articles, newId) !== -1) {
+    newId = base + '-' + n;
+    n++;
+    if (n > 50) return jsonResponse({ success: false, message: 'לא הצלחנו לייצר מזהה פנוי' });
+  }
+
+  var promoted = {};
+  for (var k in article) { if (article.hasOwnProperty(k)) promoted[k] = article[k]; }
+  promoted.id = newId;
+  promoted.promotedFrom = article.id;
+  promoted.promotedAt = new Date().toISOString();
+
+  /* התמונה יושבת ב-assets/rss-img ונמחקת בסבב הבא - מעתיקים אותה ל-uploads */
+  if (promoted.image && promoted.image.indexOf('/assets/rss-img/') > -1) {
+    var imgPath = 'assets/rss-img/' + article.id + '.jpg';
+    var imgFile = ghGetFile(token, imgPath);
+    if (imgFile && imgFile.content) {
+      var newName = 'perm-' + new Date().getTime() + '.jpg';
+      if (ghPutFile(token, 'assets/uploads/' + newName, imgFile.content.replace(/\n/g, ''), 'שמירת תמונה לכתבה קבועה: ' + newId)) {
+        promoted.image = SITE_BASE + '/assets/uploads/' + newName;
+      }
+    }
+  }
+
+  /* 1. מוסיפים לכתבות הקבועות */
+  manual.articles.unshift(promoted);
+  if (!writeJsonFile(token, manual, 'כתבה קבועה: ' + promoted.title)) {
+    return jsonResponse({ success: false, message: 'השמירה לכתבות הקבועות נכשלה' });
+  }
+
+  /* 2. מסירים מכתבות ה-RSS (קוראים מחדש - ה-sha התיישן) */
+  var rss2 = readJsonFile(token, RSS_PATH);
+  if (rss2) {
+    var i2 = findIndexById(rss2.articles, article.id);
+    if (i2 !== -1) {
+      rss2.articles.splice(i2, 1);
+      writeJsonFile(token, rss2, 'הסרת כתבה שהפכה לקבועה: ' + promoted.title);
+    }
+  }
+
+  return jsonResponse({
+    success: true,
+    message: 'הכתבה הפכה לקבועה',
+    id: newId,
+    url: SITE_BASE + '/articles/' + newId + '.html'
   });
 }
 
