@@ -97,6 +97,8 @@ function doPost(e) {
         return testLead(req);
       case 'getRecentLeads':
         return getRecentLeads(req);
+      case 'deleteTestLeads':
+        return deleteTestLeads();
       case 'checkAuth':
         return jsonResponse({ success: true, message: 'הסיסמה תקינה' });
       default:
@@ -928,6 +930,28 @@ function getRecentLeads(req) {
   base.rows = sheet.getRange(start, 1, lastRow - start + 1, headers.length).getDisplayValues().reverse();
   base.total = lastRow - 1;
   return jsonResponse(base);
+}
+
+/** מוחק מכל הטאבים את השורות שמסומנות "בדיקה" בעמודת הדגלים (לידי בדיקה מהפאנל ומהבדיקות הטכניות) */
+function deleteTestLeads() {
+  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var removed = 0;
+  var tabs = [];
+  ss.getSheets().forEach(function (sheet) {
+    var lastRow = sheet.getLastRow();
+    var lastCol = sheet.getLastColumn();
+    if (lastRow < 2 || lastCol < 1) return;
+    var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(String);
+    var flagCol = headers.indexOf('דגלים');
+    if (flagCol === -1) return;
+    var flags = sheet.getRange(2, flagCol + 1, lastRow - 1, 1).getValues();
+    var count = 0;
+    for (var i = flags.length - 1; i >= 0; i--) { // מלמטה למעלה כדי שהאינדקסים לא יזוזו
+      if (String(flags[i][0]).indexOf('בדיקה') > -1) { sheet.deleteRow(i + 2); count++; }
+    }
+    if (count) { removed += count; tabs.push(sheet.getName() + ' (' + count + ')'); }
+  });
+  return jsonResponse({ success: true, removed: removed, message: removed ? 'נמחקו ' + removed + ' לידי בדיקה: ' + tabs.join(', ') : 'לא נמצאו לידי בדיקה' });
 }
 
 /* ---------- עזרים ---------- */

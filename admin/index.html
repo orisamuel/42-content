@@ -244,6 +244,7 @@
       <select id="leads-tab" style="min-width:170px; width:auto"><option value="">טאב ראשי: לידים (הכול)</option></select>
       <button class="btn btn-ghost btn-sm" id="btn-leads">הצגת לידים אחרונים</button>
       <button class="btn btn-ghost btn-sm" id="btn-lead-settings">⚙️ התראות ו-webhooks</button>
+      <button class="btn btn-ghost btn-sm" id="btn-clear-tests" title="מוחק מכל הטאבים את השורות שמסומנות בדיקה">🧹 מחיקת לידי בדיקה</button>
     </div>
     <div class="hint">ניהול הלידים עצמו (סטטוס, הערות) נעשה בגיליון - עמודת "סטטוס" היא רשימה נפתחת. כאן רואים את האחרונים ומגדירים לאן כל ליד חדש נשלח.</div>
     <div id="leadsList"></div>
@@ -798,6 +799,17 @@
       msg += r.emails ? ' נשלח מייל ל-' + r.emails + ' נמענים.' : ' לא הוגדר מייל התראה.';
       msg += r.forwarded ? ' Webhooks: ' + r.forwarded + '.' : ' אין webhooks.';
       showStatus(msg, true, res.sheetUrl, 'פתיחת הגיליון');
+    }).catch(function (err) {
+      if (err.message !== 'no-password') showStatus('שגיאה: ' + err.message, false);
+    }).finally(done);
+  });
+
+  $('btn-clear-tests').addEventListener('click', function () {
+    if (!confirm('למחוק מכל הטאבים את כל השורות שמסומנות "בדיקה"?')) return;
+    var done = busy(this, 'מוחק...');
+    api('deleteTestLeads').then(function (res) {
+      if (!res.success) throw new Error(res.message);
+      showStatus(res.message, true);
     }).catch(function (err) {
       if (err.message !== 'no-password') showStatus('שגיאה: ' + err.message, false);
     }).finally(done);
