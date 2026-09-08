@@ -3,7 +3,7 @@
  * =====================================================================
  * נפרס כ-Web app: Execute as Me | Who has access: Anyone
  *
- * סודות (Script Properties): ADMIN_PASSWORD, GH_TOKEN, GEMINI_KEY
+ * סודות (Script Properties): GH_TOKEN, GEMINI_KEY
  * הגדרות לידים (Script Properties, נערכות מפאנל הניהול -> "לידים"):
  *   NOTIFY_EMAIL     - מייל שמקבל התראה על כל ליד (ריק = בלי)
  *   FORWARD_WEBHOOKS - כתובות https (מופרדות בשורה/פסיק) שכל ליד נשלח אליהן כ-JSON (CRM / Make / Zapier)
@@ -11,7 +11,7 @@
  *   GOOGLE_CLIENT_ID - OAuth Client ID (Web) לכפתור "כניסה עם גוגל"
  *   ALLOWED_DOMAIN   - דומיין ארגוני שנכנס אוטומטית (ברירת מחדל 42creative.co.il)
  *   ALLOWED_EMAILS   - חשבונות נוספים שמורשים (מופרדים בשורה/פסיק)
- *   ADMIN_PASSWORD   - סיסמת גיבוי (אופציונלי; אפשר למחוק כשכניסת גוגל עובדת)
+ *   (אין סיסמת גיבוי: הכניסה היא עם גוגל בלבד. ADMIN_PASSWORD ישן נמחק אוטומטית בבקשה הראשונה)
  * לקוחות וקמפיינים נרשמים בטאבים "לקוחות" ו"קמפיינים" בגיליון הראשי. לכל לקוח גיליון משלו,
  * לכל קמפיין טאב בגיליון של הלקוח; כל ליד נרשם גם בטאב הראשי "לידים".
  * הרשאות: אחרי הוספת שירות חדש (DriveApp, MailApp) בעל הסקריפט מריץ פעם אחת authorizeServices() בעורך.
@@ -65,6 +65,7 @@ function doPost(e) {
   try {
     var req = JSON.parse((e && e.postData && e.postData.contents) || '{}');
     var props = PropertiesService.getScriptProperties();
+    if (props.getProperty('ADMIN_PASSWORD')) props.deleteProperty('ADMIN_PASSWORD'); // כניסה עם גוגל בלבד - סיסמת הגיבוי הישנה מוסרת
 
     /* פעולות ציבוריות - בלי התחברות */
     if (req.action === 'addLead') return addLead(req);
@@ -72,7 +73,7 @@ function doPost(e) {
     if (req.action === 'getPublicConfig') return getPublicConfig(props);
     if (req.action === 'login') return login(req, props);
 
-    /* כל השאר דורש התחברות: session מכניסה עם גוגל, או סיסמת הגיבוי */
+    /* כל השאר דורש התחברות: session שנוצר בכניסה עם חשבון גוגל מורשה */
     var user = authenticate(req, props);
     if (!user) return jsonResponse({ success: false, code: 'unauthorized', message: 'לא מחובר - יש להיכנס מחדש' });
 
@@ -158,8 +159,7 @@ function getPublicConfig(props) {
   return jsonResponse({
     success: true,
     googleClientId: props.getProperty('GOOGLE_CLIENT_ID') || '',
-    allowedDomain: allowedDomain(props),
-    passwordLogin: Boolean(props.getProperty('ADMIN_PASSWORD'))
+    allowedDomain: allowedDomain(props)
   });
 }
 
@@ -189,37 +189,27 @@ function createSession(user) {
   return token;
 }
 
+/** כניסה: אך ורק עם ID token של גוגל של חשבון מורשה (דומיין ארגוני או רשימת מורשים) */
 function login(req, props) {
-  if (req.idToken) {
-    var v = verifyGoogleIdToken(String(req.idToken), props);
-    if (!v.ok) return jsonResponse({ success: false, message: v.message });
-    if (!isAllowedUser(v.email, props)) {
-      return jsonResponse({
-        success: false,
-        message: 'החשבון ' + v.email + ' לא מורשה לפאנל. חשבון ארגוני של ' + allowedDomain(props) + ' נכנס אוטומטית; חשבון אחר צריך להתווסף לרשימת המורשים בבלוק "גישה".'
-      });
-    }
-    var user = { email: v.email, name: v.name, picture: v.picture, via: 'google' };
-    return jsonResponse({ success: true, session: createSession(user), email: user.email, name: user.name, picture: user.picture, via: 'google', expiresIn: SESSION_TTL_SEC });
+  if (!req.idToken) return jsonResponse({ success: false, message: 'הכניסה היא עם חשבון גוגל בלבד' });
+  var v = verifyGoogleIdToken(String(req.idToken), props);
+  if (!v.ok) return jsonResponse({ success: false, message: v.message });
+  if (!isAllowedUser(v.email, props)) {
+    return jsonResponse({
+      success: false,
+      message: 'החשבון ' + v.email + ' לא מורשה לפאנל. חשבון ארגוני של ' + allowedDomain(props) + ' נכנס אוטומטית; חשבון אחר צריך להתווסף לרשימת המורשים (הגדרות ← גישה).'
+    });
   }
-  var pass = props.getProperty('ADMIN_PASSWORD');
-  if (pass && req.password && req.password === pass) {
-    var u = { email: 'סיסמת גיבוי', name: 'סיסמת גיבוי', via: 'password' };
-    return jsonResponse({ success: true, session: createSession(u), email: u.email, name: u.name, via: 'password', expiresIn: SESSION_TTL_SEC });
-  }
-  return jsonResponse({ success: false, message: req.password ? 'סיסמת הגיבוי שגויה' : 'חסר אסימון התחברות' });
+  var user = { email: v.email, name: v.name, picture: v.picture, via: 'google' };
+  return jsonResponse({ success: true, session: createSession(user), email: user.email, name: user.name, picture: user.picture, via: 'google', expiresIn: SESSION_TTL_SEC });
 }
 
-/** מחזיר את המשתמש המחובר לפי session (או סיסמת גיבוי ישירה, לכלים אוטומטיים), אחרת null */
+/** מחזיר את המשתמש המחובר לפי session, אחרת null. אין שום מסלול כניסה אחר */
 function authenticate(req, props) {
-  if (req.session) {
-    var raw = CacheService.getScriptCache().get('sess:' + String(req.session));
-    if (!raw) return null;
-    try { return JSON.parse(raw); } catch (e) { return null; }
-  }
-  var pass = props.getProperty('ADMIN_PASSWORD');
-  if (pass && req.password && req.password === pass) return { email: 'סיסמת גיבוי', name: 'סיסמת גיבוי', via: 'password' };
-  return null;
+  if (!req.session) return null;
+  var raw = CacheService.getScriptCache().get('sess:' + String(req.session));
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch (e) { return null; }
 }
 
 function logout(req) {
@@ -227,10 +217,9 @@ function logout(req) {
   return jsonResponse({ success: true, message: 'התנתקת' });
 }
 
-/** שינוי הגדרות גישה: רק חשבון ארגוני (או סיסמת הגיבוי) */
+/** שינוי הגדרות גישה: רק חשבון ארגוני */
 function canManageAccess(user, props) {
   if (!user) return false;
-  if (user.via === 'password') return true;
   return emailDomain(user.email) === allowedDomain(props);
 }
 
@@ -240,7 +229,6 @@ function getAccessSettings(props, user) {
     googleClientId: props.getProperty('GOOGLE_CLIENT_ID') || '',
     allowedDomain: allowedDomain(props),
     allowedEmails: allowedEmails(props).join('\n'),
-    passwordLogin: Boolean(props.getProperty('ADMIN_PASSWORD')),
     canManage: canManageAccess(user, props),
     via: user.via,
     origin: SITE_BASE.replace(/^(https?:\/\/[^\/]+).*$/, '$1')
@@ -262,11 +250,7 @@ function saveAccessSettings(req, props, user) {
   props.setProperty('GOOGLE_CLIENT_ID', clientId);
   props.setProperty('ALLOWED_DOMAIN', domain || DEFAULT_ALLOWED_DOMAIN);
   props.setProperty('ALLOWED_EMAILS', emails.join('\n'));
-  if (req.disablePassword === true) {
-    if (!clientId) return jsonResponse({ success: false, message: 'אי אפשר לבטל את סיסמת הגיבוי לפני שכניסת גוגל מוגדרת' });
-    if (user.via !== 'google') return jsonResponse({ success: false, message: 'כדי לבטל את סיסמת הגיבוי יש להיכנס קודם עם גוגל (כך נדע שזה עובד)' });
-    props.deleteProperty('ADMIN_PASSWORD');
-  }
+  if (!clientId) return jsonResponse({ success: true, message: 'ההגדרות נשמרו, אבל בלי Client ID אף אחד לא יוכל להיכנס - מלאו אותו' });
   return jsonResponse({ success: true, message: 'הגדרות הגישה נשמרו' });
 }
 

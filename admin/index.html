@@ -11,11 +11,10 @@
   :root { --brand:#0f1b2d; --accent:#e63946; --line:#e6e8ec; --muted:#6b7280; }
   * { box-sizing:border-box; margin:0; padding:0; }
   body { font-family:'Heebo',sans-serif; background:#f2f4f7; color:#101418; line-height:1.6; }
-  header { background:var(--brand); color:#fff; padding:14px 24px; display:flex; align-items:center; gap:12px; }
+  header { background:var(--brand); color:#fff; padding:12px 24px; display:flex; align-items:center; gap:12px; position:sticky; top:0; z-index:20; }
   header .mark { display:grid; place-items:center; width:36px; height:36px; background:var(--accent); border-radius:9px; font-weight:900; }
   header h1 { font-size:18px; font-weight:700; }
   #who { font-size:13px; color:rgba(255,255,255,.75); margin-inline-start:auto; }
-  .wrap { max-width:960px; margin:24px auto; padding:0 16px; display:grid; gap:18px; }
   .panel { background:#fff; border-radius:14px; padding:22px; box-shadow:0 2px 10px rgba(16,20,24,.06); }
   .panel h2 { font-size:17px; font-weight:800; margin-bottom:14px; padding-bottom:8px; border-bottom:2px solid var(--line); }
   label { display:block; font-size:13.5px; font-weight:600; margin:12px 0 4px; color:#3d4550; }
@@ -39,14 +38,15 @@
   .btn:disabled { opacity:.55; cursor:wait; }
   a.btn { text-decoration:none; }
   .actions { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-  #status { padding:12px 16px; border-radius:10px; font-weight:600; display:none; font-size:14.5px; position:sticky; top:8px; z-index:10; }
+  #status { padding:12px 16px; border-radius:10px; font-weight:600; display:none; font-size:14.5px; position:sticky; top:70px; z-index:10; margin-bottom:14px; }
   #status.ok { display:block; background:#e7f8f0; color:#0e7c5a; border:1px solid #b5e8d3; }
   #status.err { display:block; background:#fdeaec; color:#c22733; border:1px solid #f5c2c7; white-space:pre-wrap; }
   #status a { color:inherit; font-weight:800; text-decoration:underline; }
   #leadFields { display:none; padding:14px; background:#f7f8fa; border-radius:10px; margin-top:10px; }
   #editBar { display:none; padding:10px 14px; background:#fff8e6; border:1px solid #f5d982; border-radius:10px;
-    font-weight:600; font-size:14px; justify-content:space-between; align-items:center; gap:10px; }
+    font-weight:600; font-size:14px; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px; }
   #editBar.on { display:flex; }
+  #edit-meta { font-size:12px; color:var(--muted); font-weight:500; width:100%; }
   #imgPreview { display:none; max-width:320px; border-radius:10px; margin-top:10px; border:1px solid var(--line); }
   #preview { display:none; border-top:2px dashed var(--line); margin-top:18px; padding-top:18px; }
   #preview h3 { font-size:22px; font-weight:900; margin-bottom:6px; }
@@ -54,10 +54,24 @@
   #preview .body p { margin-bottom:12px; }
   #preview .body h2 { font-size:18px; margin:14px 0 6px; }
 
+  /* ---- מבנה: תפריט צד + מסכים ---- */
+  #app { display:none; }
+  #app.on { display:grid; grid-template-columns:230px minmax(0,1fr); }
+  #sidenav { position:sticky; top:60px; align-self:start; height:calc(100vh - 60px); padding:18px 12px; display:flex; flex-direction:column; gap:4px;
+    background:#fff; border-inline-end:1px solid var(--line); }
+  .nav-item { text-align:start; padding:10px 12px; border-radius:10px; border:0; background:none; font-family:inherit; font-size:14.5px; font-weight:600; cursor:pointer; color:#3d4550; }
+  .nav-item:hover { background:#f2f4f7; }
+  .nav-item.active { background:#fdeaec; color:#c22733; }
+  .nav-sep { height:1px; background:var(--line); margin:8px 4px; }
+  .nav-foot { margin-top:auto; font-size:11.5px; color:var(--muted); padding:0 12px; }
+  #views { padding:22px 20px 40px; min-width:0; }
+  .view { display:none; max-width:960px; margin:0 auto; }
+  .view.active { display:grid; gap:18px; }
+
   /* ---- טבלאות ---- */
   .tbl { width:100%; border-collapse:collapse; font-size:13px; margin-top:10px; display:block; overflow-x:auto; }
   .tbl th, .tbl td { padding:7px 8px; border-bottom:1px solid var(--line); text-align:start; vertical-align:top; white-space:nowrap; }
-  .tbl th { background:#f7f8fa; font-weight:700; position:sticky; top:0; }
+  .tbl th { background:#f7f8fa; font-weight:700; }
   .tbl td.wrap-cell { white-space:normal; min-width:220px; }
   .tbl tr:hover td { background:#fbfbfc; }
   .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11.5px; font-weight:700; background:#eef0f3; color:#3d4550; }
@@ -86,23 +100,26 @@
   .client-meta { font-size:12.5px; color:var(--muted); width:100%; }
 
   /* ---- מסך נעילה ---- */
-  #app { display:none; }
-  #lock { min-height:calc(100vh - 64px); display:flex; align-items:center; justify-content:center; padding:20px; }
+  #lock { min-height:calc(100vh - 60px); display:flex; align-items:center; justify-content:center; padding:20px; }
   .lock-card { background:#fff; border-radius:16px; padding:36px 32px; width:100%; max-width:420px;
     box-shadow:0 10px 40px rgba(16,20,24,.12); text-align:center; }
   .lock-card .mark { display:grid; place-items:center; width:56px; height:56px; background:var(--accent);
     color:#fff; border-radius:14px; font-weight:900; font-size:24px; margin:0 auto 16px; }
   .lock-card h2 { font-size:20px; font-weight:800; margin-bottom:6px; }
   .lock-card p { font-size:14px; color:var(--muted); margin-bottom:18px; }
-  .lock-card input { text-align:center; font-size:17px; letter-spacing:2px; }
-  .lock-card #pass-box button { width:100%; margin-top:12px; }
   .lock-err { display:none; color:#c22733; font-size:13.5px; font-weight:600; margin-top:12px; white-space:pre-wrap; }
-  #btn-logout { background:none; border:0; color:rgba(255,255,255,.7); font-family:inherit;
-    font-size:13px; cursor:pointer; display:none; }
+  .lock-foot { font-size:11.5px; color:var(--muted); margin-top:18px; }
+  #btn-logout { background:none; border:0; color:rgba(255,255,255,.7); font-family:inherit; font-size:13px; cursor:pointer; display:none; }
   #btn-logout:hover { color:#fff; text-decoration:underline; }
-  @media (max-width:640px){
+  @media (max-width:760px){
     .row { grid-template-columns:1fr; }
     .lf-row { grid-template-columns:22px 1fr 1fr; } .lf-row .lf-options { grid-column:2 / -1; }
+    #app.on { grid-template-columns:1fr; }
+    #sidenav { position:static; height:auto; flex-direction:row; overflow-x:auto; border-inline-end:0; border-bottom:1px solid var(--line); padding:8px; }
+    .nav-item { white-space:nowrap; padding:8px 12px; }
+    .nav-sep, .nav-foot { display:none; }
+    #views { padding:14px 12px 30px; }
+    #status { top:62px; }
   }
 </style>
 </head>
@@ -121,225 +138,255 @@
     <p id="gsi-hint">טוען...</p>
     <div id="gsi-btn" style="display:flex; justify-content:center; min-height:44px"></div>
     <div class="lock-err" id="lock-err"></div>
-    <a href="#" id="pass-toggle" style="display:block; margin-top:16px; font-size:12.5px; color:var(--muted)">כניסה עם סיסמת גיבוי</a>
-    <div id="pass-box" style="display:none; margin-top:10px">
-      <input type="password" id="lock-pass" placeholder="••••••••" autocomplete="current-password">
-      <button class="btn btn-primary" id="btn-unlock">כניסה</button>
-    </div>
+    <div class="lock-foot">הכניסה היא עם חשבון גוגל מורשה בלבד.</div>
   </div>
 </div>
 
-<div class="wrap" id="app">
-  <div id="status"></div>
+<div id="app">
+  <nav id="sidenav" aria-label="תפריט ניהול">
+    <button class="nav-item active" data-view="editor">✍️ כתבה חדשה</button>
+    <button class="nav-item" data-view="articles">📰 כל הכתבות</button>
+    <div class="nav-sep"></div>
+    <button class="nav-item" data-view="clients">👥 לקוחות וקמפיינים</button>
+    <button class="nav-item" data-view="leads">📥 לידים</button>
+    <div class="nav-sep"></div>
+    <button class="nav-item" data-view="settings">⚙️ הגדרות</button>
+    <div class="nav-foot" id="nav-foot"></div>
+  </nav>
 
-  <section class="panel" id="articlesPanel">
-    <h2>כתבות</h2>
-    <div class="actions">
-      <input type="text" id="art-search" placeholder="חיפוש בכותרות..." style="flex:1; min-width:200px; width:auto">
-      <button class="btn btn-ghost btn-sm" id="btn-list">רענון הרשימה</button>
-      <button class="btn btn-primary btn-sm" id="btn-new-article">+ כתבה חדשה</button>
-    </div>
-    <div id="articlesList" class="hint" style="margin-top:10px">טוען כתבות...</div>
-  </section>
+  <main id="views">
+    <div id="status"></div>
 
-  <div id="editBar">
-    <span>✏️ עורכים עכשיו את: <b id="edit-title"></b><span id="edit-type"></span></span>
-    <span class="actions">
-      <button class="btn btn-primary btn-sm" id="btn-promote" style="display:none">📌 הפוך לכתבה קבועה</button>
-      <button class="btn btn-ghost btn-sm" id="btn-cancel-edit">ביטול - חזרה לכתבה חדשה</button>
-    </span>
-  </div>
-
-  <section class="panel" id="editorPanel">
-    <h2>יצירת תוכן עם AI</h2>
-    <label>על מה הכתבה? (נושא + הנחיות חופשיות)</label>
-    <input type="text" id="ai-topic" placeholder="למשל: 7 טעויות נפוצות בביטוח רכב וכיצד להימנע מהן">
-    <div class="actions" style="margin-top:12px">
-      <button class="btn btn-primary" id="btn-generate">✨ כתוב לי את הכתבה</button>
-      <span class="hint">ממלא אוטומטית כותרת, כותרת משנה וגוף - ואפשר לערוך לפני פרסום.</span>
-    </div>
-  </section>
-
-  <section class="panel">
-    <h2>פרטי הכתבה</h2>
-    <label>כותרת ראשית *</label>
-    <input type="text" id="f-title" placeholder="הכותרת שתופיע בראש הכתבה ובעמוד הבית">
-    <label>כותרת משנה</label>
-    <input type="text" id="f-subtitle" placeholder="משפט-שניים שמרחיבים את הכותרת">
-    <div class="row">
-      <div>
-        <label>קטגוריה</label>
-        <select id="f-category"></select>
+    <!-- ===== כתבה חדשה / עריכה ===== -->
+    <section class="view active" data-view="editor">
+      <div id="editBar">
+        <span>✏️ עורכים עכשיו את: <b id="edit-title"></b><span id="edit-type"></span></span>
+        <span class="actions">
+          <button class="btn btn-primary btn-sm" id="btn-promote" style="display:none">📌 הפוך לכתבה קבועה</button>
+          <button class="btn btn-ghost btn-sm" id="btn-cancel-edit">ביטול - חזרה לכתבה חדשה</button>
+        </span>
+        <div id="edit-meta"></div>
       </div>
-      <div>
-        <label>שם כותב/ת</label>
-        <input type="text" id="f-author" value="מערכת Channel 19">
-      </div>
-    </div>
 
-    <label>תמונה ראשית</label>
-    <div class="actions">
-      <button class="btn btn-ghost btn-sm" id="btn-upload">📁 העלאה מהמחשב</button>
-      <button class="btn btn-ghost btn-sm" id="btn-genimg">🎨 צור תמונה עם AI</button>
-      <input type="file" id="f-file" accept="image/*" style="display:none">
-      <span class="hint">או הדביקו קישור למטה. תמונות AI נוצרות לפי הכותרת.</span>
-    </div>
-    <input type="url" id="f-image" placeholder="https://... (מתמלא אוטומטית בהעלאה או ביצירה)" style="margin-top:8px">
-    <img id="imgPreview" alt="תצוגה מקדימה">
-    <div class="row">
-      <div>
-        <label>קרדיט תמונה</label>
-        <input type="text" id="f-credit" placeholder="למשל: AI">
-      </div>
-      <div>
-        <label>מזהה כתבה (לכתובת ה-URL)</label>
-        <input type="text" id="f-slug" placeholder="נוצר אוטומטית">
-        <div class="hint">אותיות באנגלית, מספרים ומקפים בלבד</div>
-      </div>
-    </div>
-    <label class="check" style="margin-top:14px"><input type="checkbox" id="f-featured"> כתבה ראשית (תוצג בראש עמוד הבית)</label>
-    <label>גוף הכתבה *</label>
-    <textarea id="f-body" placeholder="כתבו כאן את הכתבה (או תנו ל-AI). פסקאות מופרדות בשורה ריקה.&#10;&#10;## כותרת ביניים&#10;&#10;**טקסט מודגש**, [קישור](https://example.com)&#10;&#10;- פריט ברשימה&#10;- פריט נוסף"></textarea>
-  </section>
-
-  <section class="panel">
-    <h2>טופס לידים</h2>
-    <label class="check"><input type="checkbox" id="lead-on"> הוסף טופס איסוף לידים לכתבה</label>
-    <div id="leadFields">
-      <label>כותרת הטופס</label>
-      <input type="text" id="l-title" placeholder="רוצים לשמוע עוד? השאירו פרטים">
-      <label>משפט הסבר</label>
-      <input type="text" id="l-subtitle" placeholder="נציג יחזור אליכם ללא התחייבות">
-      <div class="row">
-        <div>
-          <label>טקסט הכפתור</label>
-          <input type="text" id="l-button" value="שלחו לי פרטים">
+      <section class="panel" id="editorPanel">
+        <h2>יצירת תוכן עם AI</h2>
+        <label>על מה הכתבה? (נושא + הנחיות חופשיות)</label>
+        <input type="text" id="ai-topic" placeholder="למשל: 7 טעויות נפוצות בביטוח רכב וכיצד להימנע מהן">
+        <div class="actions" style="margin-top:12px">
+          <button class="btn btn-primary" id="btn-generate">✨ כתוב לי את הכתבה</button>
+          <span class="hint">ממלא אוטומטית כותרת, כותרת משנה וגוף - ואפשר לערוך לפני פרסום.</span>
         </div>
-        <div>
-          <label>הודעת תודה לאחר שליחה</label>
-          <input type="text" id="l-success" value="תודה! הפרטים נקלטו בהצלחה, ניצור איתכם קשר בהקדם.">
-        </div>
-      </div>
+      </section>
 
-      <div style="margin-top:14px; padding:12px 14px; background:#fff; border:1px solid var(--line); border-radius:10px">
-        <div style="font-weight:800; font-size:14px; margin-bottom:4px">לאן הולכים הלידים</div>
-        <div class="hint">בוחרים לקוח ואז קמפיין. הלידים נכנסים לטאב של הקמפיין בגיליון של הלקוח (וגם לטאב הראשי של הסוכנות). שתי כתבות של אותו קמפיין שופכות לאותו טאב.</div>
+      <section class="panel">
+        <h2>פרטי הכתבה</h2>
+        <label>כותרת ראשית *</label>
+        <input type="text" id="f-title" placeholder="הכותרת שתופיע בראש הכתבה ובעמוד הבית">
+        <label>כותרת משנה</label>
+        <input type="text" id="f-subtitle" placeholder="משפט-שניים שמרחיבים את הכותרת">
         <div class="row">
           <div>
-            <label>לקוח</label>
-            <select id="l-client"><option value="">- בלי לקוח (רק הטאב הראשי) -</option></select>
+            <label>קטגוריה</label>
+            <select id="f-category"></select>
           </div>
           <div>
-            <label>קמפיין</label>
-            <div class="actions" style="gap:6px; flex-wrap:nowrap">
-              <select id="l-campaign" style="flex:1"><option value="">- בחרו לקוח קודם -</option></select>
-              <button type="button" class="btn btn-ghost btn-sm" id="btn-new-campaign" title="קמפיין חדש ללקוח הנבחר">+ קמפיין</button>
+            <label>שם כותב/ת (מוצג באתר)</label>
+            <input type="text" id="f-author" value="מערכת Channel 19">
+          </div>
+        </div>
+
+        <label>תמונה ראשית</label>
+        <div class="actions">
+          <button class="btn btn-ghost btn-sm" id="btn-upload">📁 העלאה מהמחשב</button>
+          <button class="btn btn-ghost btn-sm" id="btn-genimg">🎨 צור תמונה עם AI</button>
+          <input type="file" id="f-file" accept="image/*" style="display:none">
+          <span class="hint">או הדביקו קישור למטה. תמונות AI נוצרות לפי הכותרת.</span>
+        </div>
+        <input type="url" id="f-image" placeholder="https://... (מתמלא אוטומטית בהעלאה או ביצירה)" style="margin-top:8px">
+        <img id="imgPreview" alt="תצוגה מקדימה">
+        <div class="row">
+          <div>
+            <label>קרדיט תמונה</label>
+            <input type="text" id="f-credit" placeholder="למשל: AI">
+          </div>
+          <div>
+            <label>מזהה כתבה (לכתובת ה-URL)</label>
+            <input type="text" id="f-slug" placeholder="נוצר אוטומטית">
+            <div class="hint">אותיות באנגלית, מספרים ומקפים בלבד</div>
+          </div>
+        </div>
+        <label class="check" style="margin-top:14px"><input type="checkbox" id="f-featured"> כתבה ראשית (תוצג בראש עמוד הבית)</label>
+        <label>גוף הכתבה *</label>
+        <textarea id="f-body" placeholder="כתבו כאן את הכתבה (או תנו ל-AI). פסקאות מופרדות בשורה ריקה.&#10;&#10;## כותרת ביניים&#10;&#10;**טקסט מודגש**, [קישור](https://example.com)&#10;&#10;- פריט ברשימה&#10;- פריט נוסף"></textarea>
+      </section>
+
+      <section class="panel">
+        <h2>טופס לידים</h2>
+        <label class="check"><input type="checkbox" id="lead-on"> הוסף טופס איסוף לידים לכתבה</label>
+        <div id="leadFields">
+          <label>כותרת הטופס</label>
+          <input type="text" id="l-title" placeholder="רוצים לשמוע עוד? השאירו פרטים">
+          <label>משפט הסבר</label>
+          <input type="text" id="l-subtitle" placeholder="נציג יחזור אליכם ללא התחייבות">
+          <div class="row">
+            <div>
+              <label>טקסט הכפתור</label>
+              <input type="text" id="l-button" value="שלחו לי פרטים">
             </div>
+            <div>
+              <label>הודעת תודה לאחר שליחה</label>
+              <input type="text" id="l-success" value="תודה! הפרטים נקלטו בהצלחה, ניצור איתכם קשר בהקדם.">
+            </div>
+          </div>
+
+          <div style="margin-top:14px; padding:12px 14px; background:#fff; border:1px solid var(--line); border-radius:10px">
+            <div style="font-weight:800; font-size:14px; margin-bottom:4px">לאן הולכים הלידים</div>
+            <div class="hint">בוחרים לקוח ואז קמפיין. הלידים נכנסים לטאב של הקמפיין בגיליון של הלקוח (וגם לטאב הראשי של הסוכנות). שתי כתבות של אותו קמפיין שופכות לאותו טאב.</div>
+            <div class="row">
+              <div>
+                <label>לקוח</label>
+                <select id="l-client"><option value="">- בלי לקוח (רק הטאב הראשי) -</option></select>
+              </div>
+              <div>
+                <label>קמפיין</label>
+                <div class="actions" style="gap:6px; flex-wrap:nowrap">
+                  <select id="l-campaign" style="flex:1"><option value="">- בחרו לקוח קודם -</option></select>
+                  <button type="button" class="btn btn-ghost btn-sm" id="btn-new-campaign" title="קמפיין חדש ללקוח הנבחר">+ קמפיין</button>
+                </div>
+              </div>
+            </div>
+            <div class="actions" style="margin-top:10px">
+              <button type="button" class="btn btn-ghost btn-sm" id="btn-test-article-lead" style="display:none">🧪 ליד בדיקה לכתבה זו</button>
+              <span class="hint" id="l-test-hint" style="display:none">שולח ליד מסומן "בדיקה" לפי הניתוב השמור של הכתבה (שמרו קודם אם שיניתם).</span>
+            </div>
+          </div>
+
+          <label>שדות בטופס</label>
+          <div class="hint">הטקסט של כל שדה הוא מה שהגולש רואה בתוכו (placeholder) וגם שם העמודה בגיליון. אפשר לשנות אותו, לסמן חובה, ולהוסיף שדות משלכם, כולל בחירה מרשימה.</div>
+          <div id="l-fields"></div>
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-add-field" style="margin-top:6px">+ הוספת שדה</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>פרסום</h2>
+        <div class="actions">
+          <button class="btn btn-primary" id="btn-publish">פרסום הכתבה לאתר</button>
+          <button class="btn btn-ghost" id="btn-preview">תצוגה מקדימה</button>
+          <button class="btn btn-ghost" id="btn-json">העתקת JSON</button>
+        </div>
+        <div id="preview"><h3></h3><p class="sub"></p><div class="body"></div></div>
+      </section>
+    </section>
+
+    <!-- ===== כל הכתבות ===== -->
+    <section class="view" data-view="articles">
+      <section class="panel" id="articlesPanel">
+        <h2>כל הכתבות</h2>
+        <div class="actions">
+          <input type="text" id="art-search" placeholder="חיפוש בכותרות..." style="flex:1; min-width:200px; width:auto">
+          <select id="art-type" style="width:auto; min-width:150px">
+            <option value="">הכול</option>
+            <option value="manual">קבועות (ידניות)</option>
+            <option value="rss">RSS אוטומטיות</option>
+          </select>
+          <button class="btn btn-ghost btn-sm" id="btn-list">רענון הרשימה</button>
+          <button class="btn btn-primary btn-sm" id="btn-new-article">+ כתבה חדשה</button>
+        </div>
+        <div id="articlesList" class="hint" style="margin-top:10px">טוען כתבות...</div>
+      </section>
+    </section>
+
+    <!-- ===== לקוחות וקמפיינים ===== -->
+    <section class="view" data-view="clients">
+      <section class="panel" id="clientsPanel">
+        <h2>לקוחות וקמפיינים</h2>
+        <div class="hint">לכל לקוח גיליון Google Sheets משלו; לכל קמפיין טאב בגיליון של הלקוח. כתבה מצביעה על קמפיין. כל ליד נרשם גם בטאב הראשי "לידים" של הסוכנות.</div>
+        <div id="clientsList"></div>
+        <details id="clientForm" style="margin-top:14px">
+          <summary style="cursor:pointer; font-weight:700" id="clientFormTitle">+ לקוח חדש</summary>
+          <div class="row" style="margin-top:8px">
+            <div><label>שם הלקוח *</label><input type="text" id="c-name" placeholder="למשל: טופ עלי"></div>
+            <div><label>גיליון קיים (אופציונלי)</label><input type="text" id="c-sheet" placeholder="קישור לגיליון קיים; ריק = ייפתח גיליון חדש"></div>
+          </div>
+          <div class="row">
+            <div><label>מיילים להתראה על כל ליד</label><input type="text" id="c-email" placeholder="sales@client.co.il, ..."></div>
+            <div><label>לשתף את הגיליון עם</label><input type="text" id="c-share" placeholder="מיילים של הלקוח (יקבלו הרשאת עריכה)"></div>
+          </div>
+          <label>Webhooks של הלקוח (כתובת בכל שורה)</label>
+          <textarea id="c-webhooks" style="min-height:60px" placeholder="https://hook.eu1.make.com/..."></textarea>
+          <div class="actions" style="margin-top:10px">
+            <button class="btn btn-primary btn-sm" id="btn-save-client">שמירת הלקוח</button>
+            <button class="btn btn-ghost btn-sm" id="btn-cancel-client" style="display:none">ביטול עריכה</button>
+          </div>
+        </details>
+      </section>
+    </section>
+
+    <!-- ===== לידים ===== -->
+    <section class="view" data-view="leads">
+      <section class="panel" id="leadsPanel">
+        <h2>לידים</h2>
+        <div class="actions">
+          <a class="btn btn-ghost btn-sm" id="link-sheet" href="https://docs.google.com/spreadsheets/d/1Vw1TM5Jg_WiQTxBFJCvveNm_Bn5pcgYLcu28egueMXY" target="_blank" rel="noopener">📊 הגיליון הראשי</a>
+          <select id="leads-tab" style="min-width:170px; width:auto"><option value="">טאב ראשי: לידים (הכול)</option></select>
+          <button class="btn btn-ghost btn-sm" id="btn-leads">הצגת לידים אחרונים</button>
+          <button class="btn btn-ghost btn-sm" id="btn-lead-settings">⚙️ התראות ו-webhooks כלליים</button>
+          <button class="btn btn-ghost btn-sm" id="btn-clear-tests" title="מוחק מכל הגיליונות את השורות שמסומנות בדיקה">🧹 מחיקת לידי בדיקה</button>
+        </div>
+        <div class="hint">ניהול הלידים עצמו (סטטוס, הערות) נעשה בגיליונות - עמודת "סטטוס" היא רשימה נפתחת. כאן רואים את האחרונים ומגדירים יעדים כלליים לכל הלידים.</div>
+        <div id="leadsList"></div>
+        <div id="leadSettings" style="display:none; margin-top:14px; padding:14px; background:#f7f8fa; border-radius:10px">
+          <label>מייל להתראה על כל ליד חדש (של הסוכנות)</label>
+          <input type="text" id="ls-email" placeholder="leads@42creative.co.il (ריק = בלי מייל)">
+          <div class="hint">כל ליד מכל לקוח נשלח גם למייל הזה. מיילים של לקוחות מוגדרים בלקוח ובקמפיין.</div>
+          <label>Webhooks כלליים (כתובת אחת בכל שורה)</label>
+          <textarea id="ls-webhooks" style="min-height:90px" placeholder="https://hook.eu1.make.com/...&#10;https://hooks.zapier.com/hooks/catch/..."></textarea>
+          <div class="hint">כל ליד נשלח כ-JSON (POST) לכל כתובת ברשימה. תוצאת השליחה נרשמת בעמודה "העברה" בגיליון.</div>
+          <div class="actions" style="margin-top:12px">
+            <button class="btn btn-primary btn-sm" id="btn-save-lead-settings">שמירת ההגדרות</button>
+            <button class="btn btn-ghost btn-sm" id="btn-test-lead">🧪 שליחת ליד בדיקה (כללי)</button>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <!-- ===== הגדרות ===== -->
+    <section class="view" data-view="settings">
+      <section class="panel" id="githubPanel">
+        <h2>חיבור GitHub</h2>
+        <div id="gh-status" style="font-size:14px; font-weight:600">בודק חיבור...</div>
+        <div class="hint" style="margin-top:6px">הפאנל שומר כתבות ותמונות לריפו דרך טוקן של GitHub. כשהטוקן פוקע, פרסום והעלאת תמונות נכשלים. טוקן חדש: GitHub ← Settings ← Developer settings ← Personal access tokens ← Fine-grained tokens ← Generate new token ← Repository access: Only select repositories ← 42-content ← Permissions: Contents = Read and write ← Expiration: Custom, שנה קדימה. מדביקים כאן ולוחצים "שמירה ובדיקה".</div>
+        <div class="actions" style="margin-top:10px">
+          <input type="password" id="gh-token" placeholder="github_pat_..." style="flex:1; min-width:240px; width:auto" autocomplete="off">
+          <button class="btn btn-primary btn-sm" id="btn-save-token">שמירה ובדיקה</button>
+          <button class="btn btn-ghost btn-sm" id="btn-check-github">בדיקת חיבור</button>
+        </div>
+      </section>
+
+      <section class="panel" id="accessPanel">
+        <h2>גישה</h2>
+        <div class="hint" style="margin-bottom:8px">הכניסה לפאנל היא עם חשבון גוגל בלבד. אין סיסמת גיבוי. חשבון מהדומיין הארגוני נכנס אוטומטית; חשבון אחר צריך להופיע ברשימת המורשים.</div>
+        <div id="svc-status" style="font-size:13.5px"></div>
+        <label>Google Client ID (לכפתור "כניסה עם גוגל")</label>
+        <input type="text" id="ac-client" placeholder="1234567890-abcdef.apps.googleusercontent.com">
+        <div class="hint">מנוהל ב-Google Cloud Console, פרויקט Channel 19 Admin ← Google Auth Platform ← Clients. Authorized JavaScript origin: <b id="ac-origin">https://orisamuel.github.io</b>. שינוי כאן בלי סיבה יחסום את הכניסה לכולם.</div>
+        <div class="row">
+          <div>
+            <label>דומיין ארגוני שנכנס אוטומטית</label>
+            <input type="text" id="ac-domain" placeholder="42creative.co.il">
+          </div>
+          <div>
+            <label>חשבונות נוספים מורשים (מייל בכל שורה)</label>
+            <textarea id="ac-emails" style="min-height:70px" placeholder="freelancer@gmail.com"></textarea>
           </div>
         </div>
         <div class="actions" style="margin-top:10px">
-          <button type="button" class="btn btn-ghost btn-sm" id="btn-test-article-lead" style="display:none">🧪 ליד בדיקה לכתבה זו</button>
-          <span class="hint" id="l-test-hint" style="display:none">שולח ליד מסומן "בדיקה" לפי הניתוב השמור של הכתבה (שמרו קודם אם שיניתם).</span>
+          <button class="btn btn-primary btn-sm" id="btn-save-access">שמירת הגדרות הגישה</button>
         </div>
-      </div>
-
-      <label>שדות בטופס</label>
-      <div class="hint">הטקסט של כל שדה הוא מה שהגולש רואה בתוכו (placeholder) וגם שם העמודה בגיליון. אפשר לשנות אותו, לסמן חובה, ולהוסיף שדות משלכם, כולל בחירה מרשימה.</div>
-      <div id="l-fields"></div>
-      <button type="button" class="btn btn-ghost btn-sm" id="btn-add-field" style="margin-top:6px">+ הוספת שדה</button>
-    </div>
-  </section>
-
-  <section class="panel">
-    <h2>פרסום</h2>
-    <div class="actions">
-      <button class="btn btn-primary" id="btn-publish">פרסום הכתבה לאתר</button>
-      <button class="btn btn-ghost" id="btn-preview">תצוגה מקדימה</button>
-      <button class="btn btn-ghost" id="btn-json">העתקת JSON</button>
-    </div>
-    <div id="preview"><h3></h3><p class="sub"></p><div class="body"></div></div>
-  </section>
-
-  <section class="panel" id="clientsPanel">
-    <h2>לקוחות וקמפיינים</h2>
-    <div class="hint">לכל לקוח גיליון Google Sheets משלו; לכל קמפיין טאב בגיליון של הלקוח. כתבה מצביעה על קמפיין. כל ליד נרשם גם בטאב הראשי "לידים" של הסוכנות.</div>
-    <div id="clientsList"></div>
-    <details id="clientForm" style="margin-top:14px">
-      <summary style="cursor:pointer; font-weight:700" id="clientFormTitle">+ לקוח חדש</summary>
-      <div class="row" style="margin-top:8px">
-        <div><label>שם הלקוח *</label><input type="text" id="c-name" placeholder="למשל: טופ עלי"></div>
-        <div><label>גיליון קיים (אופציונלי)</label><input type="text" id="c-sheet" placeholder="קישור לגיליון קיים; ריק = ייפתח גיליון חדש"></div>
-      </div>
-      <div class="row">
-        <div><label>מיילים להתראה על כל ליד</label><input type="text" id="c-email" placeholder="sales@client.co.il, ..."></div>
-        <div><label>לשתף את הגיליון עם</label><input type="text" id="c-share" placeholder="מיילים של הלקוח (יקבלו הרשאת עריכה)"></div>
-      </div>
-      <label>Webhooks של הלקוח (כתובת בכל שורה)</label>
-      <textarea id="c-webhooks" style="min-height:60px" placeholder="https://hook.eu1.make.com/..."></textarea>
-      <div class="actions" style="margin-top:10px">
-        <button class="btn btn-primary btn-sm" id="btn-save-client">שמירת הלקוח</button>
-        <button class="btn btn-ghost btn-sm" id="btn-cancel-client" style="display:none">ביטול עריכה</button>
-      </div>
-    </details>
-  </section>
-
-  <section class="panel" id="leadsPanel">
-    <h2>לידים</h2>
-    <div class="actions">
-      <a class="btn btn-ghost btn-sm" id="link-sheet" href="https://docs.google.com/spreadsheets/d/1Vw1TM5Jg_WiQTxBFJCvveNm_Bn5pcgYLcu28egueMXY" target="_blank" rel="noopener">📊 הגיליון הראשי</a>
-      <select id="leads-tab" style="min-width:170px; width:auto"><option value="">טאב ראשי: לידים (הכול)</option></select>
-      <button class="btn btn-ghost btn-sm" id="btn-leads">הצגת לידים אחרונים</button>
-      <button class="btn btn-ghost btn-sm" id="btn-lead-settings">⚙️ התראות ו-webhooks כלליים</button>
-      <button class="btn btn-ghost btn-sm" id="btn-clear-tests" title="מוחק מכל הגיליונות את השורות שמסומנות בדיקה">🧹 מחיקת לידי בדיקה</button>
-    </div>
-    <div class="hint">ניהול הלידים עצמו (סטטוס, הערות) נעשה בגיליונות - עמודת "סטטוס" היא רשימה נפתחת. כאן רואים את האחרונים ומגדירים יעדים כלליים לכל הלידים.</div>
-    <div id="leadsList"></div>
-    <div id="leadSettings" style="display:none; margin-top:14px; padding:14px; background:#f7f8fa; border-radius:10px">
-      <label>מייל להתראה על כל ליד חדש (של הסוכנות)</label>
-      <input type="text" id="ls-email" placeholder="leads@42creative.co.il (ריק = בלי מייל)">
-      <div class="hint">כל ליד מכל לקוח נשלח גם למייל הזה. מיילים של לקוחות מוגדרים בלקוח ובקמפיין.</div>
-      <label>Webhooks כלליים (כתובת אחת בכל שורה)</label>
-      <textarea id="ls-webhooks" style="min-height:90px" placeholder="https://hook.eu1.make.com/...&#10;https://hooks.zapier.com/hooks/catch/..."></textarea>
-      <div class="hint">כל ליד נשלח כ-JSON (POST) לכל כתובת ברשימה. תוצאת השליחה נרשמת בעמודה "העברה" בגיליון.</div>
-      <div class="actions" style="margin-top:12px">
-        <button class="btn btn-primary btn-sm" id="btn-save-lead-settings">שמירת ההגדרות</button>
-        <button class="btn btn-ghost btn-sm" id="btn-test-lead">🧪 שליחת ליד בדיקה (כללי)</button>
-      </div>
-    </div>
-  </section>
-
-  <section class="panel" id="githubPanel">
-    <h2>חיבור GitHub</h2>
-    <div id="gh-status" style="font-size:14px; font-weight:600">בודק חיבור...</div>
-    <div class="hint" style="margin-top:6px">הפאנל שומר כתבות ותמונות לריפו דרך טוקן של GitHub. כשהטוקן פוקע, פרסום והעלאת תמונות נכשלים. טוקן חדש: GitHub ← Settings ← Developer settings ← Personal access tokens ← Fine-grained tokens ← Generate new token ← Repository access: Only select repositories ← 42-content ← Permissions: Contents = Read and write ← Expiration: Custom, שנה קדימה. מדביקים כאן ולוחצים "שמירה ובדיקה".</div>
-    <div class="actions" style="margin-top:10px">
-      <input type="password" id="gh-token" placeholder="github_pat_..." style="flex:1; min-width:240px; width:auto" autocomplete="off">
-      <button class="btn btn-primary btn-sm" id="btn-save-token">שמירה ובדיקה</button>
-      <button class="btn btn-ghost btn-sm" id="btn-check-github">בדיקת חיבור</button>
-    </div>
-  </section>
-
-  <section class="panel" id="accessPanel">
-    <h2>גישה</h2>
-    <div id="svc-status" style="font-size:13.5px"></div>
-    <label>Google Client ID (לכפתור "כניסה עם גוגל")</label>
-    <input type="text" id="ac-client" placeholder="1234567890-abcdef.apps.googleusercontent.com">
-    <div class="hint">יוצרים ב-Google Cloud Console ← APIs &amp; Services ← Credentials ← Create credentials ← OAuth client ID ← Web application, עם Authorized JavaScript origin: <b id="ac-origin">https://orisamuel.github.io</b>. מדביקים כאן את ה-Client ID (זה לא סוד). אין צורך ב-Client secret.</div>
-    <div class="row">
-      <div>
-        <label>דומיין ארגוני שנכנס אוטומטית</label>
-        <input type="text" id="ac-domain" placeholder="42creative.co.il">
-      </div>
-      <div>
-        <label>חשבונות נוספים מורשים (מייל בכל שורה)</label>
-        <textarea id="ac-emails" style="min-height:70px" placeholder="freelancer@gmail.com"></textarea>
-      </div>
-    </div>
-    <label class="check" id="ac-disable-wrap" style="display:none; margin-top:10px"><input type="checkbox" id="ac-disable"> לבטל את סיסמת הגיבוי (מעכשיו רק כניסה עם גוגל)</label>
-    <div class="actions" style="margin-top:10px">
-      <button class="btn btn-primary btn-sm" id="btn-save-access">שמירת הגדרות הגישה</button>
-    </div>
-  </section>
+      </section>
+    </section>
+  </main>
 </div>
 
 <script>
@@ -358,6 +405,7 @@
   var editingType = 'manual';
   var articleOrigin = 'manual';
   var articles = [];
+  var articlesLoaded = false;
   var registry = { clients: {}, campaigns: {} };
   var editingClientId = '';
 
@@ -410,7 +458,20 @@
     });
   }
 
-  /* ---------- כניסה: גוגל + סיסמת גיבוי ---------- */
+  /* ---------- מסכים ותפריט צד ---------- */
+  function showView(name) {
+    document.querySelectorAll('.view').forEach(function (v) { v.classList.toggle('active', v.dataset.view === name); });
+    document.querySelectorAll('.nav-item').forEach(function (b) { b.classList.toggle('active', b.dataset.view === name); });
+    statusEl.className = '';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (name === 'articles' && !articlesLoaded) loadArticles();
+    if (name === 'settings') { checkGitHub(); checkServices(); loadAccessSettings(); }
+  }
+  document.querySelectorAll('.nav-item').forEach(function (b) {
+    b.addEventListener('click', function () { showView(b.dataset.view); });
+  });
+
+  /* ---------- כניסה: גוגל בלבד ---------- */
   function setLockErr(msg) {
     var el = $('lock-err');
     el.textContent = msg || '';
@@ -419,20 +480,19 @@
 
   function unlockApp() {
     $('lock').style.display = 'none';
-    $('app').style.display = 'grid';
+    $('app').classList.add('on');
     $('btn-logout').style.display = 'block';
-    $('who').textContent = me ? (me.via === 'password' ? 'מחובר עם סיסמת גיבוי' : 'מחובר: ' + me.email) : '';
+    $('who').textContent = me ? 'מחובר: ' + me.email : '';
+    $('nav-foot').textContent = me ? me.email : '';
+    showView('editor');
     loadRegistry().then(loadArticles);
-    checkGitHub();
-    checkServices();
-    loadAccessSettings();
   }
 
   function lockScreen(msg) {
     session = '';
     me = null;
     try { localStorage.removeItem('c18_session'); localStorage.removeItem('c18_user'); } catch (e) {}
-    $('app').style.display = 'none';
+    $('app').classList.remove('on');
     $('btn-logout').style.display = 'none';
     $('who').textContent = '';
     $('lock').style.display = 'flex';
@@ -473,40 +533,18 @@
     })();
   }
 
-  function showPasswordLogin() {
-    $('pass-box').style.display = 'block';
-    $('pass-toggle').style.display = 'none';
-  }
-
   function initLogin() {
     publicApi('getPublicConfig').then(function (cfg) {
       if (cfg.googleClientId) {
         $('gsi-hint').textContent = 'כניסה עם חשבון גוגל של ' + cfg.allowedDomain + ' או חשבון מורשה';
         setupGoogle(cfg.googleClientId);
       } else {
-        $('gsi-hint').textContent = 'כניסת גוגל עוד לא הוגדרה. היכנסו עם סיסמת הגיבוי והדביקו Client ID בבלוק "גישה".';
-        showPasswordLogin();
+        $('gsi-hint').textContent = 'כניסת גוגל לא מוגדרת בשרת (חסר Client ID). פנו למנהל המערכת.';
       }
-      if (!cfg.passwordLogin) { $('pass-toggle').style.display = 'none'; $('pass-box').style.display = 'none'; }
     }).catch(function () {
       $('gsi-hint').textContent = 'אין תקשורת עם השרת - נסו לרענן.';
-      showPasswordLogin();
     });
   }
-
-  $('pass-toggle').addEventListener('click', function (ev) { ev.preventDefault(); showPasswordLogin(); $('lock-pass').focus(); });
-
-  $('btn-unlock').addEventListener('click', function () {
-    var pass = $('lock-pass').value.trim();
-    if (!pass) return;
-    var done = busy(this, 'בודק...');
-    publicApi('login', { password: pass }).then(function (res) {
-      if (!res.success) throw new Error(res.message);
-      $('lock-pass').value = '';
-      onLoggedIn(res);
-    }).catch(function (err) { setLockErr(err.message || 'הכניסה נכשלה'); }).finally(done);
-  });
-  $('lock-pass').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') $('btn-unlock').click(); });
 
   $('btn-logout').addEventListener('click', function () {
     var s = session;
@@ -561,11 +599,12 @@
     return e;
   }
 
-  /* ---------- טבלת הכתבות ---------- */
+  /* ---------- כל הכתבות ---------- */
   function loadArticles() {
     return api('getArticles').then(function (res) {
       if (!res.success) throw new Error(res.message);
       articles = res.articles.slice().sort(function (a, b) { return new Date(b.date) - new Date(a.date); });
+      articlesLoaded = true;
       renderArticles();
     }).catch(function (err) { fail(err, 'טעינת הכתבות נכשלה'); $('articlesList').textContent = ''; });
   }
@@ -581,10 +620,15 @@
 
   function renderArticles() {
     var q = $('art-search').value.trim().toLowerCase();
+    var typeFilter = $('art-type').value;
     var list = $('articlesList');
     list.innerHTML = '';
     list.className = '';
-    var rows = articles.filter(function (a) { return !q || (a.title || '').toLowerCase().indexOf(q) > -1; });
+    var rows = articles.filter(function (a) {
+      if (typeFilter === 'rss' && a.type !== 'rss') return false;
+      if (typeFilter === 'manual' && a.type === 'rss') return false;
+      return !q || (a.title || '').toLowerCase().indexOf(q) > -1;
+    });
     if (!rows.length) { list.className = 'hint'; list.textContent = 'אין כתבות להצגה.'; return; }
     var table = el('table', null, 'tbl');
     var head = table.createTHead().insertRow();
@@ -619,18 +663,18 @@
       }
     });
     list.appendChild(table);
-    var summary = el('div', rows.length + ' כתבות (' + articles.filter(function (a) { return a.type !== 'rss'; }).length + ' קבועות, ' + articles.filter(function (a) { return a.type === 'rss'; }).length + ' RSS)', 'hint');
-    list.appendChild(summary);
+    list.appendChild(el('div', rows.length + ' כתבות (' + articles.filter(function (a) { return a.type !== 'rss'; }).length + ' קבועות, ' + articles.filter(function (a) { return a.type === 'rss'; }).length + ' RSS)', 'hint'));
   }
 
   $('art-search').addEventListener('input', renderArticles);
+  $('art-type').addEventListener('change', renderArticles);
   $('btn-list').addEventListener('click', function () {
     var done = busy(this, 'טוען...');
     loadRegistry().then(loadArticles).finally(done);
   });
   $('btn-new-article').addEventListener('click', function () {
     resetEditor();
-    $('editorPanel').scrollIntoView({ behavior: 'smooth' });
+    showView('editor');
     $('ai-topic').focus();
   });
 
@@ -806,7 +850,7 @@
 
   $('btn-new-campaign').addEventListener('click', function () {
     var clientId = $('l-client').value;
-    if (!clientId) { showStatus('בחרו לקוח קודם (או צרו אחד בבלוק "לקוחות וקמפיינים").', false); return; }
+    if (!clientId) { showStatus('בחרו לקוח קודם (או צרו אחד במסך "לקוחות וקמפיינים").', false); return; }
     var name = prompt('שם הקמפיין החדש ללקוח ' + registry.clients[clientId].name + ':');
     if (!name || !name.trim()) return;
     var done = busy(this, 'יוצר...');
@@ -908,7 +952,15 @@
   });
 
   /* ---------- פתיחת כתבה לעריכה ---------- */
+  function editMetaText(a) {
+    var parts = [];
+    if (a.createdAt || a.createdBy) parts.push('נוצרה ' + fmtDate(a.createdAt || a.date) + (a.createdBy ? ' על ידי ' + a.createdBy : '') + (HOW[a.createdVia] ? ' (' + HOW[a.createdVia][0] + ')' : ''));
+    if (a.updatedAt) parts.push('עודכנה לאחרונה ' + fmtDate(a.updatedAt) + (a.updatedBy ? ' על ידי ' + a.updatedBy : ''));
+    return parts.join(' · ');
+  }
+
   function openArticle(id) {
+    showView('editor');
     showStatus('טוען את הכתבה...', true);
     api('getArticle', { id: id }).then(function (res) {
       if (!res.success) throw new Error(res.message);
@@ -947,12 +999,12 @@
       $('edit-title').textContent = (a.title || '').slice(0, 45);
       editingType = res.type || 'manual';
       $('edit-type').textContent = editingType === 'rss' ? ' (כתבת RSS - מתחלפת בסבב היומי)' : '';
+      $('edit-meta').textContent = editingType === 'rss' ? 'נוצרה אוטומטית מ-RSS ' + fmtDate(a.createdAt || a.date) : editMetaText(a);
       $('btn-promote').style.display = editingType === 'rss' ? 'inline-block' : 'none';
       $('btn-test-article-lead').style.display = 'inline-block';
       $('l-test-hint').style.display = 'inline';
       $('editBar').className = 'on';
       $('btn-publish').textContent = 'שמירת השינויים';
-      $('editBar').scrollIntoView({ behavior: 'smooth', block: 'start' });
       showStatus(editingType === 'rss'
         ? 'כתבת RSS נטענה לעריכה. שימו לב: היא תתחלף בסבב היומי - לחצו "הפוך לכתבה קבועה" כדי לשמור אותה לתמיד.'
         : 'הכתבה נטענה לעריכה. ערכו ולחצו "שמירת השינויים".', true);
@@ -965,6 +1017,7 @@
     editingType = 'manual';
     articleOrigin = 'manual';
     $('editBar').className = '';
+    $('edit-meta').textContent = '';
     $('btn-promote').style.display = 'none';
     $('btn-test-article-lead').style.display = 'none';
     $('l-test-hint').style.display = 'none';
@@ -1284,7 +1337,7 @@
     }).catch(function (err) { fail(err); }).finally(done);
   });
 
-  /* ---------- חיבור GitHub ---------- */
+  /* ---------- הגדרות: חיבור GitHub ---------- */
   function renderGh(res) {
     var e = $('gh-status');
     e.textContent = (res.ok ? '✅ ' : '❌ ') + (res.message || (res.ok ? 'מחובר' : 'אין חיבור'));
@@ -1311,7 +1364,7 @@
     }).catch(function (err) { fail(err); }).finally(done);
   });
 
-  /* ---------- גישה + הרשאות שירותים ---------- */
+  /* ---------- הגדרות: גישה + הרשאות שירותים ---------- */
   function checkServices() {
     api('checkServices').then(function (res) {
       var box = $('svc-status');
@@ -1331,7 +1384,7 @@
         help.appendChild(document.createTextNode('אישור חד-פעמי של בעל הסקריפט: '));
         var a = el('a', 'פתיחת העורך'); a.href = res.scriptUrl; a.target = '_blank'; a.rel = 'noopener';
         help.appendChild(a);
-        help.appendChild(document.createTextNode(' ← בוחרים למעלה את הפונקציה authorizeServices ← Run ← Review permissions ← Allow. עד אז מיילים ושיתוף גיליונות לא יישלחו (הלידים עצמם נרשמים כרגיל).'));
+        help.appendChild(document.createTextNode(' ← בוחרים למעלה את הפונקציה authorizeServices ← Run ← Review permissions ← Allow.'));
         box.appendChild(help);
       }
     }).catch(function (err) { if (err.message !== 'no-session') $('svc-status').textContent = 'לא ניתן לבדוק הרשאות: ' + err.message; });
@@ -1344,8 +1397,6 @@
       $('ac-domain').value = res.allowedDomain || '';
       $('ac-emails').value = res.allowedEmails || '';
       if (res.origin) $('ac-origin').textContent = res.origin;
-      $('ac-disable-wrap').style.display = (res.passwordLogin && res.googleClientId && me && me.via === 'google') ? 'flex' : 'none';
-      $('ac-disable').checked = false;
       var can = res.canManage !== false;
       ['ac-client', 'ac-domain', 'ac-emails', 'btn-save-access'].forEach(function (id) { $(id).disabled = !can; });
       if (!can) showStatus('הגדרות הגישה ניתנות לשינוי רק מחשבון ארגוני.', true);
@@ -1353,17 +1404,14 @@
   }
 
   $('btn-save-access').addEventListener('click', function () {
-    var disable = $('ac-disable').checked;
-    if (disable && !confirm('לבטל את סיסמת הגיבוי? מעכשיו הכניסה תהיה רק עם חשבון גוגל מורשה.')) return;
     var done = busy(this, 'שומר...');
     api('saveAccessSettings', {
       googleClientId: $('ac-client').value.trim(),
       allowedDomain: $('ac-domain').value.trim(),
-      allowedEmails: $('ac-emails').value.trim(),
-      disablePassword: disable
+      allowedEmails: $('ac-emails').value.trim()
     }).then(function (res) {
       if (!res.success) throw new Error(res.message);
-      showStatus(res.message + ($('ac-client').value.trim() ? ' כפתור הכניסה עם גוגל יופיע במסך הכניסה הבא.' : ''), true);
+      showStatus(res.message, true);
       loadAccessSettings();
     }).catch(function (err) { fail(err); }).finally(done);
   });
