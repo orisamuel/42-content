@@ -1,10 +1,10 @@
 {
-  "siteName": "Channel 18",
-  "siteTitle": "Channel 18",
-  "brand": { "mark": "18", "text": "Channel", "textBold": "18" },
-  "authorName": "מערכת Channel 18",
+  "siteName": "Channel 19",
+  "siteTitle": "Channel 19",
+  "brand": { "mark": "19", "text": "Channel", "textBold": "19" },
+  "authorName": "מערכת Channel 19",
   "tagline": "התוכן שמעניין אתכם באמת",
-  "description": "Channel 18 - חדשות, כלכלה, צרכנות, טכנולוגיה ולייפסטייל. כל התוכן שמעניין אתכם במקום אחד.",
+  "description": "Channel 19 - חדשות, כלכלה, צרכנות, טכנולוגיה ולייפסטייל. כל התוכן שמעניין אתכם במקום אחד.",
   "baseUrl": "https://orisamuel.github.io/42-content",
   "leadWebhook": "https://script.google.com/macros/s/AKfycbz4XJXiKdMbF6nxmfedy0SwdnbXgpdTfzKzFWMDtVmynumXSn1i-VBN__dk89RjKgRU4A/exec",
   "tracking": {

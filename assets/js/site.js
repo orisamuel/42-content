@@ -1,4 +1,4 @@
-/* Channel 18 - סקריפט אתר */
+/* Channel 19 - סקריפט אתר */
 (function () {
   'use strict';
 

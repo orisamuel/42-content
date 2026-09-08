@@ -49,7 +49,7 @@ jobs:
 
       - name: קומיט של הדפים והתמונות שנוצרו
         run: |
-          git config user.name "channel18-bot"
+          git config user.name "channel19-bot"
           git config user.email "actions@github.com"
           git add -A
           if git diff --cached --quiet; then

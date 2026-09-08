@@ -1,7 +1,7 @@
 {
-  "name": "channel18-site",
+  "name": "channel19-site",
   "private": true,
-  "description": "Channel 18 - אתר תוכן סטטי (GitHub Pages) עם RSS, Gemini ולידים",
+  "description": "Channel 19 - אתר תוכן סטטי (GitHub Pages) עם RSS, Gemini ולידים",
   "scripts": {
     "build": "node scripts/build.mjs",
     "rss": "node scripts/fetch-rss.mjs",

@@ -1,4 +1,4 @@
-# Channel 18 - אתר תוכן
+# Channel 19 - אתר תוכן
 
 אתר תוכן סטטי בעברית (RTL) המתארח ב-GitHub Pages, עם עדכון אוטומטי מפידי RSS, ניסוח כתבות מחדש ותמונות AI באמצעות Gemini, וטפסי איסוף לידים לגוגל שיטס - כולל התראות מייל והעברה ל-CRM דרך webhooks.
 
@@ -36,7 +36,7 @@ data/articles.json  (כתבות ידניות + טפסי לידים)  ───�
 
 הכניסה לפאנל היא עם חשבון גוגל: כל חשבון ארגוני של `42creative.co.il` נכנס אוטומטית, וחשבונות אחרים נוספים לרשימת המורשים בבלוק **"גישה"** בפאנל. מאחורי הקלעים: כפתור "Sign in with Google" (Google Identity Services) מנפיק ID token, ה-Apps Script מאמת אותו מול גוגל (חתימה, תוקף, Client ID) ופותח session ל-6 שעות. כל פעולה בפאנל נרשמת על שם החשבון (מי פרסם, מי ערך).
 
-**הגדרה חד-פעמית** (בעל החשבון): Google Cloud Console ← APIs & Services ← Credentials ← Create credentials ← OAuth client ID ← Web application ← Authorized JavaScript origins: `https://orisamuel.github.io` (ואחרי מעבר לדומיין משלנו גם אותו) ← Create ← להעתיק את ה-Client ID אל בלוק "גישה" בפאנל. אם אין עדיין OAuth consent screen, מגדירים אחד (External, שם האפליקציה "Channel 18 Admin", מייל תמיכה) - לכניסה בלבד לא נדרש אימות של גוגל.
+**הגדרה חד-פעמית** (בעל החשבון): Google Cloud Console ← APIs & Services ← Credentials ← Create credentials ← OAuth client ID ← Web application ← Authorized JavaScript origins: `https://orisamuel.github.io` (ואחרי מעבר לדומיין משלנו גם אותו) ← Create ← להעתיק את ה-Client ID אל בלוק "גישה" בפאנל. אם אין עדיין OAuth consent screen, מגדירים אחד (External, שם האפליקציה "Channel 19 Admin", מייל תמיכה) - לכניסה בלבד לא נדרש אימות של גוגל.
 
 סיסמת גיבוי (`ADMIN_PASSWORD`) נשארת זמינה דרך הקישור הקטן במסך הכניסה, ואפשר לבטל אותה מבלוק "גישה" אחרי שכניסת גוגל עובדת.
 
@@ -108,7 +108,7 @@ data/articles.json  (כתבות ידניות + טפסי לידים)  ───�
 
 ```json
 {
-  "source": "channel18", "leadId": "m1abc-x7k2", "receivedAt": "2026-09-08T09:12:00.000Z",
+  "source": "channel19", "leadId": "m1abc-x7k2", "receivedAt": "2026-09-08T09:12:00.000Z",
   "date": "08/09/2026", "time": "12:12",
   "fullname": "ישראל ישראלי", "phone": "0501234567", "email": "", "city": "",
   "article": "top-ali-2026", "campaign": "טופ עלי - ספטמבר", "client": "טופ עלי", "page": "https://.../articles/top-ali-2026.html",

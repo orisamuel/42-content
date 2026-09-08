@@ -34,7 +34,7 @@ const GEMINI_KEY = process.env.GEMINI_API_KEY || '';
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';
 const PROVIDER = GEMINI_KEY ? 'gemini' : ANTHROPIC_KEY ? 'claude' : '';
 const MODEL = process.env.REWRITE_MODEL || (PROVIDER === 'gemini' ? 'gemini-flash-latest' : 'claude-opus-5');
-const UA = 'Mozilla/5.0 (compatible; Channel18Bot/1.0)';
+const UA = 'Mozilla/5.0 (compatible; Channel19Bot/1.0)';
 
 /* ---------- עזרי טקסט ---------- */
 function decodeEntities(s = '') {

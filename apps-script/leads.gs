@@ -1,5 +1,5 @@
 /**
- * Channel 18 - שרת ניהול: לידים + פרסום/עריכת כתבות + יצירת תוכן ותמונות
+ * Channel 19 - שרת ניהול: לידים + פרסום/עריכת כתבות + יצירת תוכן ותמונות
  * =====================================================================
  * נפרס כ-Web app: Execute as Me | Who has access: Anyone
  *
@@ -706,7 +706,7 @@ function generateArticle(req, props) {
   if (!key) return jsonResponse({ success: false, message: 'GEMINI_KEY לא מוגדר ב-Script Properties' });
   if (!req.topic) return jsonResponse({ success: false, message: 'חסר נושא לכתבה' });
 
-  var system = 'אתה כותב תוכן בכיר במגזין דיגיטלי ישראלי בשם "Channel 18". כתוב כתבת מגזין בעברית רהוטה על הנושא שתקבל.\n' +
+  var system = 'אתה כותב תוכן בכיר במגזין דיגיטלי ישראלי בשם "Channel 19". כתוב כתבת מגזין בעברית רהוטה על הנושא שתקבל.\n' +
     'כללים מחייבים:\n' +
     '- אל תמציא עובדות ספציפיות: בלי מספרים מדויקים, שמות של אנשים או חברות, מחקרים או ציטוטים פיקטיביים. ידע כללי ועצות מעשיות - כן.\n' +
     '- title: כותרת מסקרנת ומזמינה אך מדויקת.\n' +
@@ -1132,7 +1132,7 @@ function extrasToObject(extras) {
 
 function leadPayload(row, flags, extras) {
   return {
-    source: 'channel18',
+    source: 'channel19',
     leadId: row['מזהה ליד'],
     receivedAt: new Date().toISOString(),
     date: row['תאריך'],
@@ -1213,7 +1213,7 @@ function notifyLead(row, flags, routing, extras) {
       ['זמן', row['תאריך'] + ' ' + row['שעה']], ['דגלים', row['דגלים']], ['טאב בגיליון', row['יעד']]
     ].concat(extras || []).filter(function (l) { return l[1]; });
     var html = '<div dir="rtl" style="font-family:Arial,sans-serif;font-size:15px">' +
-      '<h2 style="margin:0 0 12px">ליד חדש מ-Channel 18</h2>' +
+      '<h2 style="margin:0 0 12px">ליד חדש מ-Channel 19</h2>' +
       '<table cellpadding="6" style="border-collapse:collapse">' +
       lines.map(function (l) {
         return '<tr><td style="color:#666">' + l[0] + '</td><td><b>' + escapeHtml(l[1]) + '</b></td></tr>';
@@ -1221,7 +1221,7 @@ function notifyLead(row, flags, routing, extras) {
       '</table>' +
       (phone ? '<p><a href="tel:' + phone + '">📞 התקשרו עכשיו</a> · <a href="https://wa.me/972' + phone.slice(1) + '">💬 וואטסאפ</a></p>' : '') +
       '<p style="color:#888;font-size:12px"><a href="' + SHEET_URL + '">לגיליון הלידים</a></p></div>';
-    MailApp.sendEmail({ to: to, subject: subject, htmlBody: html, name: 'Channel 18 לידים' });
+    MailApp.sendEmail({ to: to, subject: subject, htmlBody: html, name: 'Channel 19 לידים' });
   } catch (err) { /* מייל שנפל לא מכשיל את הליד */ }
   return recipients.length;
 }

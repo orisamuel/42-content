@@ -1,5 +1,5 @@
 /**
- * build.mjs - מחולל האתר הסטטי של Channel 18
+ * build.mjs - מחולל האתר הסטטי של Channel 19
  * קורא את data/*.json ומייצר: index.html, articles/*.html, category/*.html,
  * pages/*.html, sitemap.xml. לפני הבנייה מריץ אופטימיזציית תמונות (דחיסה + WebP).
  * הרצה: node scripts/build.mjs
