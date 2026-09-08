@@ -104,15 +104,24 @@ data/articles.json  (כתבות ידניות + טפסי לידים)  ───�
 - זיהוי כפילויות: אותו טלפון בתוך 24 שעות מסומן "כפול"; ניסיון חוזר של אותה שליחה (אותו leadId) לא יוצר שורה נוספת
 - LockService - כתיבה בטוחה גם כשכמה לידים מגיעים באותה שנייה
 
-### חיבור ראשוני / עדכון קוד ה-Apps Script
+### עדכון קוד ה-Apps Script (פריסה ישירה עם clasp)
 
-1. פתחו את הגיליון ← Extensions ← Apps Script, והדביקו את התוכן של `apps-script/leads.gs`
-2. ודאו ש-`SHEET_ID` בקוד תואם לגיליון
-3. Deploy ← New deployment ← Web app ← Execute as: **Me**, Who has access: **Anyone**
-4. העתיקו את כתובת ה-Web app אל `leadWebhook` ב-`data/site.json` (וגם ל-`API` בראש `admin/index.html`)
-5. Project Settings ← Script Properties: `ADMIN_PASSWORD`, `GH_TOKEN`, `GEMINI_KEY`
+הקוד ב-`apps-script/leads.gs` הוא המקור. כדי שהשרת החי יריץ אותו צריך לפרוס גרסה חדשה - ישירות מהטרמינל, בלי לפתוח את העורך של גוגל:
 
-⚠️ אחרי כל שינוי בקוד ה-Apps Script חובה: Deploy ← Manage deployments ← Edit ← **New version** ← Deploy. אחרת הכתובת החיה ממשיכה להריץ את הקוד הישן.
+```bash
+# פעם אחת במחשב: npm i -g @google/clasp && clasp login   (אישור OAuth בדפדפן)
+mkdir gas && cd gas
+clasp clone-script 1_zMcYV7qG2PVnFn7wTGPGXZXBViA9ezLzj_cKGfigMnruHAWC8QiEZvI
+cp ../apps-script/leads.gs קוד.js
+clasp push -f
+clasp create-version "תיאור השינוי"          # מדפיס את מספר הגרסה החדשה
+clasp update-deployment AKfycbz4XJXiKdMbF6nxmfedy0SwdnbXgpdTfzKzFWMDtVmynumXSn1i-VBN__dk89RjKgRU4A -V <מספר הגרסה> -d "תיאור"
+```
+
+הגרסה החדשה חיה מיידית באותה כתובת (`leadWebhook`). לחזרה לגרסה קודמת: אותה פקודה עם `-V` של הגרסה הישנה.
+`clasp list-deployments` מציג את הפריסות והגרסאות. הסודות (ADMIN_PASSWORD, GH_TOKEN, GEMINI_KEY, NOTIFY_EMAIL, FORWARD_WEBHOOKS) יושבים ב-Script Properties ולא נפגעים מפריסה.
+
+**חיבור מאפס (פרויקט חדש):** גיליון ← Extensions ← Apps Script ← הדבקת `leads.gs` ← עדכון `SHEET_ID` ← Deploy ← New deployment ← Web app (Execute as: Me, Who has access: Anyone) ← הכתובת אל `leadWebhook` ב-`data/site.json` ואל `API` ב-`admin/index.html`.
 
 ## פיקסלים ומדידה (טאבולה / אאוטבריין / מטא / GA4)
 
