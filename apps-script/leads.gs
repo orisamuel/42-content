@@ -1442,6 +1442,18 @@ function cleanupTestArtifacts() {
     }
   });
 
+  /* 3. קבצי לקוח שנותרו מבדיקה קודמת (הרישום שלהם כבר נמחק) - לאשפה אם ריקים */
+  ['13Q9UWH9z3v51ENGoY2bnGzDC3rBh8wpxbTdNKSW0V8o'].forEach(function (fileId) {
+    try {
+      var f = DriveApp.getFileById(fileId);
+      if (f.isTrashed()) { log.push('כבר באשפה: ' + f.getName()); return; }
+      var s2 = SpreadsheetApp.openById(fileId);
+      var hasData2 = s2.getSheets().some(function (sh) { return sh.getLastRow() > 1; });
+      if (!hasData2) { f.setTrashed(true); log.push('הקובץ "' + f.getName() + '" הועבר לאשפה'); }
+      else log.push('הקובץ ' + f.getName() + ' נשאר - יש בו נתונים');
+    } catch (e) { log.push('קובץ ' + fileId + ': ' + e); }
+  });
+
   clearRegistryCache();
   clearRoutingCache();
   Logger.log(log.length ? log.join('\n') : 'לא נמצאו שאריות בדיקה');
