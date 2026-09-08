@@ -98,6 +98,8 @@
   .client-head { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
   .client-head b { font-size:16px; }
   .client-meta { font-size:12.5px; color:var(--muted); width:100%; }
+  .camp-form { display:grid; grid-template-columns:1.1fr 1fr 1.3fr 1.3fr auto auto; gap:8px; align-items:center; margin-top:10px; }
+  .camp-form input { padding:8px 10px; font-size:13.5px; }
 
   /* ---- מסך נעילה ---- */
   #lock { min-height:calc(100vh - 60px); display:flex; align-items:center; justify-content:center; padding:20px; }
@@ -118,6 +120,7 @@
     #sidenav { position:static; height:auto; flex-direction:row; overflow-x:auto; border-inline-end:0; border-bottom:1px solid var(--line); padding:8px; }
     .nav-item { white-space:nowrap; padding:8px 12px; }
     .nav-sep, .nav-foot { display:none; }
+    .camp-form { grid-template-columns:1fr; }
     #views { padding:14px 12px 30px; }
     #status { top:62px; }
   }
@@ -241,7 +244,7 @@
 
           <div style="margin-top:14px; padding:12px 14px; background:#fff; border:1px solid var(--line); border-radius:10px">
             <div style="font-weight:800; font-size:14px; margin-bottom:4px">לאן הולכים הלידים</div>
-            <div class="hint">בוחרים לקוח ואז קמפיין. הלידים נכנסים לטאב של הקמפיין בגיליון של הלקוח (וגם לטאב הראשי של הסוכנות). שתי כתבות של אותו קמפיין שופכות לאותו טאב.</div>
+            <div class="hint">בוחרים לקוח ואז קמפיין. הלידים נכנסים לטאב של הקמפיין בקובץ של הלקוח (וגם לטאב "לידים" בקובץ הראשי של הסוכנות). שתי כתבות של אותו קמפיין שופכות לאותו טאב.</div>
             <div class="row">
               <div>
                 <label>לקוח</label>
@@ -301,17 +304,17 @@
     <section class="view" data-view="clients">
       <section class="panel" id="clientsPanel">
         <h2>לקוחות וקמפיינים</h2>
-        <div class="hint">לכל לקוח גיליון Google Sheets משלו; לכל קמפיין טאב בגיליון של הלקוח. כתבה מצביעה על קמפיין. כל ליד נרשם גם בטאב הראשי "לידים" של הסוכנות.</div>
+        <div class="hint">לכל לקוח <b>קובץ</b> Google Sheets משלו (נפתח אוטומטית); לכל קמפיין <b>טאב</b> בתוך הקובץ של הלקוח. כתבה מצביעה על קמפיין. כל ליד נרשם גם בטאב "לידים" בקובץ הראשי של הסוכנות. מיילים ו-webhooks: ברמת הלקוח (כל הקמפיינים שלו) וברמת הקמפיין, בנוסף לכלליים במסך "לידים".</div>
         <div id="clientsList"></div>
         <details id="clientForm" style="margin-top:14px">
           <summary style="cursor:pointer; font-weight:700" id="clientFormTitle">+ לקוח חדש</summary>
           <div class="row" style="margin-top:8px">
             <div><label>שם הלקוח *</label><input type="text" id="c-name" placeholder="למשל: טופ עלי"></div>
-            <div><label>גיליון קיים (אופציונלי)</label><input type="text" id="c-sheet" placeholder="קישור לגיליון קיים; ריק = ייפתח גיליון חדש"></div>
+            <div><label>קובץ Google Sheets קיים (אופציונלי)</label><input type="text" id="c-sheet" placeholder="קישור לקובץ קיים; ריק = ייפתח קובץ חדש"></div>
           </div>
           <div class="row">
             <div><label>מיילים להתראה על כל ליד</label><input type="text" id="c-email" placeholder="sales@client.co.il, ..."></div>
-            <div><label>לשתף את הגיליון עם</label><input type="text" id="c-share" placeholder="מיילים של הלקוח (יקבלו הרשאת עריכה)"></div>
+            <div><label>לשתף את הקובץ עם</label><input type="text" id="c-share" placeholder="מיילים של הלקוח (יקבלו הרשאת עריכה)"></div>
           </div>
           <label>Webhooks של הלקוח (כתובת בכל שורה)</label>
           <textarea id="c-webhooks" style="min-height:60px" placeholder="https://hook.eu1.make.com/..."></textarea>
@@ -718,7 +721,7 @@
       var card = el('div', null, 'client-card');
       var head = el('div', null, 'client-head');
       head.appendChild(el('b', c.name));
-      if (c.sheetUrl) { var a = el('a', '📊 הגיליון של הלקוח'); a.href = c.sheetUrl; a.target = '_blank'; a.rel = 'noopener'; a.style.fontSize = '13px'; head.appendChild(a); }
+      if (c.sheetUrl) { var a = el('a', '📊 הקובץ של הלקוח'); a.href = c.sheetUrl; a.target = '_blank'; a.rel = 'noopener'; a.style.fontSize = '13px'; head.appendChild(a); }
       var editBtn = el('button', 'עריכת הלקוח', 'link-btn'); editBtn.type = 'button';
       editBtn.addEventListener('click', function () { editClient(c); });
       head.appendChild(editBtn);
@@ -733,10 +736,11 @@
       card.appendChild(head);
 
       var camps = campaignsOf(c.id);
+      var form = buildCampaignForm(c);
       if (camps.length) {
         var t = el('table', null, 'tbl');
         var hr = t.createTHead().insertRow();
-        ['קמפיין', 'טאב בגיליון', 'מיילים', 'webhooks', 'כתבות', ''].forEach(function (h) { hr.appendChild(el('th', h)); });
+        ['קמפיין', 'טאב בקובץ הלקוח', 'מיילים', 'webhooks', 'כתבות', ''].forEach(function (h) { hr.appendChild(el('th', h)); });
         var tb = t.createTBody();
         camps.forEach(function (k) {
           var tr = tb.insertRow();
@@ -746,32 +750,67 @@
           tr.insertCell().textContent = (k.webhooks || []).length || '-';
           tr.insertCell().textContent = articles.filter(function (a) { return a.lead && a.lead.campaignId === k.id; }).length;
           var td = tr.insertCell();
+          var editK = el('button', 'עריכה', 'link-btn'); editK.type = 'button';
+          editK.addEventListener('click', function () { form.edit(k); });
+          td.appendChild(editK);
+          td.appendChild(document.createTextNode(' · '));
           var test = el('button', '🧪 ליד בדיקה', 'link-btn'); test.type = 'button';
           test.addEventListener('click', function () { testCampaign(k, c); });
           td.appendChild(test);
         });
         card.appendChild(t);
       } else {
-        card.appendChild(el('div', 'עדיין אין קמפיינים ללקוח הזה.', 'hint'));
+        card.appendChild(el('div', 'עדיין אין קמפיינים ללקוח הזה. הוסיפו את הראשון:', 'hint'));
       }
-
-      var add = el('div', null, 'actions'); add.style.marginTop = '10px';
-      var nameIn = el('input'); nameIn.type = 'text'; nameIn.placeholder = 'שם קמפיין חדש, למשל: טופ עלי - ספטמבר'; nameIn.style.flex = '1'; nameIn.style.minWidth = '200px'; nameIn.style.width = 'auto';
-      var addBtn = el('button', '+ קמפיין', 'btn btn-ghost btn-sm'); addBtn.type = 'button';
-      addBtn.addEventListener('click', function () {
-        var name = nameIn.value.trim();
-        if (!name) { showStatus('כתבו שם לקמפיין.', false); return; }
-        var done = busy(addBtn, 'יוצר...');
-        api('saveCampaign', { clientId: c.id, name: name }).then(function (res) {
-          if (!res.success) throw new Error(res.message);
-          showStatus(res.message, true, res.sheetUrl, 'פתיחת הגיליון');
-          return loadRegistry();
-        }).catch(function (err) { fail(err); }).finally(done);
-      });
-      add.appendChild(nameIn); add.appendChild(addBtn);
-      card.appendChild(add);
+      card.appendChild(form.node);
       box.appendChild(card);
     });
+  }
+
+  /* טופס קמפיין (הוספה / עריכה) בתוך כרטיס הלקוח: שם, טאב, מיילים, webhooks */
+  function buildCampaignForm(c) {
+    var node = el('div', null, 'camp-form');
+    var mk = function (ph) { var i = el('input'); i.type = 'text'; i.placeholder = ph; return i; };
+    var fName = mk('שם הקמפיין *');
+    var fTab = mk('שם הטאב (ברירת מחדל: שם הקמפיין)');
+    var fEmails = mk('מיילים להתראה, מופרדים בפסיק');
+    var fHooks = mk('webhooks, מופרדים ברווח');
+    var save = el('button', '+ קמפיין', 'btn btn-ghost btn-sm'); save.type = 'button';
+    var cancel = el('button', 'ביטול', 'link-btn'); cancel.type = 'button'; cancel.style.display = 'none';
+    var campId = '';
+    function reset() {
+      campId = '';
+      [fName, fTab, fEmails, fHooks].forEach(function (i) { i.value = ''; });
+      save.textContent = '+ קמפיין';
+      cancel.style.display = 'none';
+    }
+    cancel.addEventListener('click', reset);
+    save.addEventListener('click', function () {
+      var name = fName.value.trim();
+      if (!name) { showStatus('כתבו שם לקמפיין.', false); return; }
+      var done = busy(save, 'שומר...');
+      api('saveCampaign', { id: campId, clientId: c.id, name: name, tab: fTab.value.trim(), notifyEmail: fEmails.value.trim(), webhooks: fHooks.value.trim() })
+        .then(function (res) {
+          if (!res.success) throw new Error(res.message);
+          showStatus(res.message, true, res.sheetUrl, 'פתיחת הקובץ של הלקוח');
+          reset();
+          return loadRegistry();
+        }).catch(function (err) { fail(err); }).finally(done);
+    });
+    [fName, fTab, fEmails, fHooks, save, cancel].forEach(function (x) { node.appendChild(x); });
+    return {
+      node: node,
+      edit: function (k) {
+        campId = k.id;
+        fName.value = k.name;
+        fTab.value = k.tab || '';
+        fEmails.value = (k.emails || []).join(', ');
+        fHooks.value = (k.webhooks || []).join(' ');
+        save.textContent = 'שמירת הקמפיין';
+        cancel.style.display = 'inline';
+        fName.focus();
+      }
+    };
   }
 
   function testCampaign(k, c) {

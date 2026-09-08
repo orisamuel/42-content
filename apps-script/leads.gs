@@ -1406,6 +1406,47 @@ function deleteTestLeads() {
   return jsonResponse({ success: true, removed: acc.removed, message: acc.removed ? 'נמחקו ' + acc.removed + ' לידי בדיקה: ' + acc.tabs.join(', ') : 'לא נמצאו לידי בדיקה' });
 }
 
+/* ---------- ניקוי שאריות בדיקה - להרצה ידנית מהעורך בלבד (לא חשוף ב-doPost) ---------- */
+function cleanupTestArtifacts() {
+  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var log = [];
+
+  /* 1. טאבים ישנים (ניתוב לפי כתבה, בדיקות, טאב ברירת מחדל) - נמחקים רק אם ריקים */
+  ['בדיקת-שדות', 'a-20260806-1534', 'a-20260908-1537', 'גיליון1', 'Sheet1'].forEach(function (name) {
+    var sh = ss.getSheetByName(name);
+    if (!sh) return;
+    if (sh.getLastRow() <= 1) { ss.deleteSheet(sh); log.push('נמחק טאב ריק: ' + name); }
+    else log.push('נשאר (יש בו ' + (sh.getLastRow() - 1) + ' שורות): ' + name);
+  });
+
+  /* 2. לקוחות וקמפיינים שנוצרו בבדיקות (על ידי סיסמת הגיבוי): מחיקת הרישום והעברת הקובץ לאשפה (ניתן לשחזור 30 יום) */
+  var reg = getRegistry(true);
+  var clientsSh = registrySheet(ss, CLIENTS_TAB, CLIENT_HEADERS);
+  var campsSh = registrySheet(ss, CAMPAIGNS_TAB, CAMPAIGN_HEADERS);
+  Object.keys(reg.clients).forEach(function (id) {
+    var c = reg.clients[id];
+    if (c.createdBy !== 'סיסמת גיבוי') return;
+    var campRows = readRegistryRows(campsSh, CAMPAIGN_HEADERS);
+    for (var i = campRows.length - 1; i >= 0; i--) {
+      if (campRows[i]['מזהה לקוח'] === id) { campsSh.deleteRow(i + 2); log.push('נמחק קמפיין: ' + campRows[i]['שם']); }
+    }
+    try {
+      var css = SpreadsheetApp.openById(c.sheetId);
+      var hasData = css.getSheets().some(function (sh) { return sh.getLastRow() > 1; });
+      if (!hasData) { DriveApp.getFileById(c.sheetId).setTrashed(true); log.push('הקובץ "' + css.getName() + '" הועבר לאשפה'); }
+      else log.push('הקובץ של ' + c.name + ' נשאר - יש בו נתונים');
+    } catch (e) { log.push('הקובץ של ' + c.name + ': ' + e); }
+    var clientRows = readRegistryRows(clientsSh, CLIENT_HEADERS);
+    for (var j = clientRows.length - 1; j >= 0; j--) {
+      if (clientRows[j]['מזהה'] === id) { clientsSh.deleteRow(j + 2); log.push('נמחק לקוח: ' + c.name); }
+    }
+  });
+
+  clearRegistryCache();
+  clearRoutingCache();
+  Logger.log(log.length ? log.join('\n') : 'לא נמצאו שאריות בדיקה');
+}
+
 /* ---------- עזרים ---------- */
 function jsonResponse(obj) {
   return ContentService
