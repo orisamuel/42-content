@@ -34,7 +34,7 @@ const GEMINI_KEY = process.env.GEMINI_API_KEY || '';
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';
 const PROVIDER = GEMINI_KEY ? 'gemini' : ANTHROPIC_KEY ? 'claude' : '';
 const MODEL = process.env.REWRITE_MODEL || (PROVIDER === 'gemini' ? 'gemini-flash-latest' : 'claude-opus-5');
-const UA = 'Mozilla/5.0 (compatible; Magazine42Bot/1.0)';
+const UA = 'Mozilla/5.0 (compatible; Channel18Bot/1.0)';
 
 /* ---------- עזרי טקסט ---------- */
 function decodeEntities(s = '') {
@@ -321,7 +321,7 @@ async function main() {
       subtitle: rw?.subtitle || (it.summary ? it.summary.slice(0, 160) : ''),
       category: it.category,
       image: images.get(it.id) || `${site.baseUrl}/assets/img/cat-${catSlug(it.category)}.jpg`,
-      author: 'מערכת 42',
+      author: site.authorName || ('מערכת ' + (site.siteName || '')),
       date: it.date,
       body: rw?.body || (it.summary || it.title),
       source: { name: it.sourceName, url: it.link },
@@ -341,11 +341,12 @@ async function main() {
 
   writeFileSync(cachePath, JSON.stringify(merged, null, 2));
 
-  // 7. ניקוי תמונות של כתבות שיצאו מהאתר
-  const keep = new Set(merged.map((a) => `${a.id}.jpg`));
+  // 7. ניקוי תמונות (וגרסאות ה-WebP שלהן) של כתבות שיצאו מהאתר
+  const keepIds = new Set(merged.map((a) => a.id));
   let cleaned = 0;
   for (const f of readdirSync(IMG_DIR)) {
-    if (!keep.has(f)) { unlinkSync(join(IMG_DIR, f)); cleaned++; }
+    const stem = f.replace(/-(480|800|1200)\.webp$/i, '').replace(/\.(jpe?g|png|webp)$/i, '');
+    if (!keepIds.has(stem)) { unlinkSync(join(IMG_DIR, f)); cleaned++; }
   }
 
   console.log(`\nנשמרו ${merged.length} כתבות RSS (${merged.filter((a) => a.rewritten).length} מנוסחות, ${cleaned} תמונות ישנות נוקו).`);

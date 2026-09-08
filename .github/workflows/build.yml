@@ -11,6 +11,7 @@ on:
       - 'assets/**'
       - 'scripts/**'
       - 'admin/**'
+      - 'package.json'
       - '.github/workflows/**'
   workflow_dispatch:
 
@@ -19,47 +20,57 @@ permissions:
   pages: write
   id-token: write
 
+# ריצה אחת בכל פעם. ריצה חדשה מבטלת ריצה ישנה שעדיין לא הסתיימה -
+# כך ריצה "תקועה" (כמו זו שחסמה את האתר באוגוסט 2026) לא חוסמת את כל הבאות
 concurrency:
   group: site-build
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
+          cache: npm
+
+      - name: התקנת תלויות (sharp - דחיסת תמונות ו-WebP)
+        run: npm ci || npm install
 
       - name: בניית האתר
         run: node scripts/build.mjs
 
-      - name: קומיט של הדפים שנוצרו
+      - name: קומיט של הדפים והתמונות שנוצרו
         run: |
-          git config user.name "42-bot"
+          git config user.name "channel18-bot"
           git config user.email "actions@github.com"
           git add -A
           if git diff --cached --quiet; then
             echo "אין שינויים"
           else
             git commit -m "בנייה מחדש של דפי האתר [skip ci]"
-            git push
+            git push || (git pull --rebase && git push)
           fi
 
-      - uses: actions/configure-pages@v5
+      - name: ניקוי לפני העלאה (node_modules לא עולה לאתר)
+        run: rm -rf node_modules
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@v6
+
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: '.'
 
       - name: פריסה ל-GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
         with:
           timeout: 1800000   # עד 30 דקות - התור של Pages איטי לפעמים
           error_count: 15

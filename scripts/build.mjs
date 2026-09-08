@@ -1,12 +1,13 @@
 /**
- * build.mjs - מחולל האתר הסטטי של מגזין 42
+ * build.mjs - מחולל האתר הסטטי של Channel 18
  * קורא את data/*.json ומייצר: index.html, articles/*.html, category/*.html,
- * pages/*.html, sitemap.xml
+ * pages/*.html, sitemap.xml. לפני הבנייה מריץ אופטימיזציית תמונות (דחיסה + WebP).
  * הרצה: node scripts/build.mjs
  */
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { optimizeImages } from './optimize-images.mjs';
 
 const ROOT_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
 const readJSON = (p) => JSON.parse(readFileSync(join(ROOT_DIR, p), 'utf8'));
@@ -18,6 +19,9 @@ const rssArticles = existsSync(join(ROOT_DIR, 'data/rss-articles.json'))
   : [];
 
 const layout = readFileSync(join(ROOT_DIR, 'templates/layout.html'), 'utf8');
+
+/* תמונות: דחיסה + גרסאות WebP. מדלג (עם הודעה) אם sharp לא מותקן - האתר עדיין נבנה */
+await optimizeImages();
 
 /* ---------- עזרים ---------- */
 const esc = (s = '') =>
@@ -72,6 +76,7 @@ function mdToHtml(md = '') {
 
 const catSlug = (name) => (site.categories.find((c) => c.name === name) || {}).slug || 'news';
 const articleUrl = (a) => `articles/${a.id}.html`;
+const authorOf = (a) => a.author || site.authorName || site.siteTitle;
 
 /* ---------- איחוד ומיון כתבות ---------- */
 const seen = new Set();
@@ -85,6 +90,105 @@ if (!all.length) {
 }
 
 const imgOf = (a) => a.image || `${site.baseUrl}/assets/img/cat-${catSlug(a.category)}.jpg`;
+
+/* ---------- תמונות רספונסיביות ---------- */
+const VARIANT_WIDTHS = [480, 800, 1200];
+const IMG_EXT_RE = /\.(jpe?g|png|webp)$/i;
+
+/** נתיב מקומי לתמונה שמתארחת באתר עצמו (null = תמונה חיצונית, בלי גרסאות) */
+function localImagePath(url) {
+  const prefix = `${site.baseUrl.replace(/\/$/, '')}/assets/`;
+  if (url.startsWith(prefix)) return `assets/${url.slice(prefix.length)}`;
+  if (url.startsWith('/assets/')) return url.slice(1);
+  if (url.startsWith('assets/')) return url;
+  return null;
+}
+
+/** גרסאות ה-WebP שקיימות בפועל לתמונה (נוצרות ב-scripts/optimize-images.mjs) */
+function webpVariants(url) {
+  const local = localImagePath(url);
+  if (!local || !IMG_EXT_RE.test(local)) return [];
+  const stem = local.replace(IMG_EXT_RE, '');
+  const urlStem = url.replace(IMG_EXT_RE, '');
+  return VARIANT_WIDTHS
+    .filter((w) => existsSync(join(ROOT_DIR, `${stem}-${w}.webp`)))
+    .map((w) => ({ w, url: `${urlStem}-${w}.webp` }));
+}
+
+/**
+ * תג תמונה: <picture> עם srcset של WebP כשיש גרסאות, אחרת <img> רגיל.
+ * sizes = רוחב התצוגה הצפוי, כדי שהדפדפן יבחר את הגרסה הקטנה ביותר שמספיקה.
+ */
+function imgTag(a, { sizes = '100vw', eager = false } = {}) {
+  const src = imgOf(a);
+  const loadAttrs = eager ? 'fetchpriority="high" decoding="async"' : 'loading="lazy" decoding="async"';
+  const img = `<img src="${escAttr(src)}" alt="${escAttr(a.title)}" width="1200" height="675" ${loadAttrs}>`;
+  const variants = webpVariants(src);
+  if (!variants.length) return img;
+  const srcset = variants.map((v) => `${escAttr(v.url)} ${v.w}w`).join(', ');
+  return `<picture><source type="image/webp" srcset="${srcset}" sizes="${escAttr(sizes)}">${img}</picture>`;
+}
+
+const SIZES = {
+  hero: '(max-width: 900px) 100vw, 700px',
+  side: '(max-width: 620px) 100vw, (max-width: 900px) 50vw, 430px',
+  grid: '(max-width: 620px) 100vw, (max-width: 900px) 50vw, 372px',
+  article: '(max-width: 800px) 100vw, 720px',
+};
+
+/* ---------- מיתוג ---------- */
+const brand = site.brand || {};
+const LOGO_MARK = esc(brand.mark || site.siteName || '');
+const LOGO_TEXT = `${esc(brand.text || site.siteTitle)}${brand.textBold ? ` <b>${esc(brand.textBold)}</b>` : ''}`;
+
+/* ---------- פיקסלים ומדידה (data/site.json -> tracking; ריק = לא נטען כלום) ---------- */
+const safeId = (v, re = /^[A-Za-z0-9_-]+$/) => (v && re.test(String(v)) ? String(v) : '');
+
+function trackingHead() {
+  const t = site.tracking || {};
+  const parts = [];
+
+  const taboola = safeId(t.taboolaId, /^\d+$/);
+  if (taboola) parts.push(`<script>
+window._tfa = window._tfa || [];
+window._tfa.push({notify: 'event', name: 'page_view', id: ${taboola}});
+!function (t, f, a, x) { if (!document.getElementById(x)) { t.async = 1; t.src = a; t.id = x; f.parentNode.insertBefore(t, f); } }
+(document.createElement('script'), document.getElementsByTagName('script')[0], '//cdn.taboola.com/libtrc/unip/${taboola}/tfa.js', 'tb_tfa_script');
+</script>`);
+
+  const outbrain = safeId(t.outbrainId);
+  if (outbrain) parts.push(`<script data-obct>
+!function(_window,_document){var OB_ADV_ID='${outbrain}';if(_window.obApi){var toArray=function(o){return Object.prototype.toString.call(o)==='[object Array]'?o:[o]};_window.obApi.marketerId=toArray(_window.obApi.marketerId).concat(toArray(OB_ADV_ID));return}var api=_window.obApi=function(){api.dispatch?api.dispatch.apply(api,arguments):api.queue.push(arguments)};api.version='1.1';api.loaded=true;api.marketerId=OB_ADV_ID;api.queue=[];var tag=_document.createElement('script');tag.async=true;tag.src='//amplify.outbrain.com/cp/obtp.js';tag.type='text/javascript';var script=_document.getElementsByTagName('script')[0];script.parentNode.insertBefore(tag,script)}(window,document);
+obApi('track','PAGE_VIEW');
+</script>`);
+
+  const meta = safeId(t.metaPixelId, /^\d+$/);
+  if (meta) parts.push(`<script>
+!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+fbq('init','${meta}');fbq('track','PageView');
+</script>`);
+
+  const ga4 = safeId(t.ga4Id);
+  if (ga4) parts.push(`<script async src="https://www.googletagmanager.com/gtag/js?id=${ga4}"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${ga4}');</script>`);
+
+  return parts.join('\n');
+}
+
+const TRACKING_HEAD = trackingHead();
+
+/* ההגדרות שהדפדפן צריך (טופס לידים + אירועי פיקסל). '<' מקודד כדי שלא יסגור את תג הסקריפט */
+const SITE_CONFIG = JSON.stringify({
+  leadWebhook: site.leadWebhook || '',
+  tracking: {
+    taboolaId: safeId(site.tracking?.taboolaId, /^\d+$/),
+    taboolaLeadEvent: site.tracking?.taboolaLeadEvent || 'lead',
+    outbrainId: safeId(site.tracking?.outbrainId),
+    outbrainLeadEvent: site.tracking?.outbrainLeadEvent || 'Lead',
+    metaPixelId: safeId(site.tracking?.metaPixelId, /^\d+$/),
+    ga4Id: safeId(site.tracking?.ga4Id),
+  },
+}).replace(/</g, '\\u003c');
 
 /* ---------- רכיבי HTML ---------- */
 const navHtml = (root, activeCat = '') =>
@@ -100,12 +204,16 @@ function renderPage({ title, description, content, root, headExtra = '', activeC
   html = fill(html, '{{TITLE}}', esc(title));
   html = fill(html, '{{DESCRIPTION}}', escAttr(description || site.description));
   html = fill(html, '{{HEAD_EXTRA}}', headExtra);
+  html = fill(html, '{{TRACKING_HEAD}}', TRACKING_HEAD);
   html = fill(html, '{{NAV}}', navHtml(root, activeCat));
   html = fill(html, '{{CONTENT}}', content);
   html = fill(html, '{{ROOT}}', root);
+  html = fill(html, '{{SITE_TITLE}}', esc(site.siteTitle));
+  html = fill(html, '{{LOGO_MARK}}', LOGO_MARK);
+  html = fill(html, '{{LOGO_TEXT}}', LOGO_TEXT);
   html = fill(html, '{{TAGLINE}}', esc(site.tagline));
   html = fill(html, '{{YEAR}}', String(new Date().getFullYear()));
-  html = fill(html, '{{LEAD_WEBHOOK}}', escAttr(site.leadWebhook || ''));
+  html = fill(html, '{{SITE_CONFIG}}', SITE_CONFIG);
   return html;
 }
 
@@ -113,7 +221,7 @@ const chip = (a) => `<span class="chip" data-cat="${escAttr(a.category)}">${esc(
 
 const heroCard = (a, root) => `
 <a class="card card-hero" href="${root}${articleUrl(a)}">
-  <div class="card-img"><img src="${escAttr(imgOf(a))}" alt="${escAttr(a.title)}" fetchpriority="high"></div>
+  <div class="card-img">${imgTag(a, { sizes: SIZES.hero, eager: true })}</div>
   <div class="card-body">
     ${chip(a)}
     <h2>${esc(a.title)}</h2>
@@ -123,7 +231,7 @@ const heroCard = (a, root) => `
 
 const sideCard = (a, root) => `
 <a class="card card-side" href="${root}${articleUrl(a)}">
-  <div class="card-img"><img src="${escAttr(imgOf(a))}" alt="${escAttr(a.title)}" loading="lazy"></div>
+  <div class="card-img">${imgTag(a, { sizes: SIZES.side })}</div>
   <div class="card-body">
     ${chip(a)}
     <h3>${esc(a.title)}</h3>
@@ -132,7 +240,7 @@ const sideCard = (a, root) => `
 
 const gridCard = (a, root) => `
 <a class="card card-grid" href="${root}${articleUrl(a)}">
-  <div class="card-img"><img src="${escAttr(imgOf(a))}" alt="${escAttr(a.title)}" loading="lazy"></div>
+  <div class="card-img">${imgTag(a, { sizes: SIZES.grid })}</div>
   <div class="card-body">
     ${chip(a)}
     <h3>${esc(a.title)}</h3>
@@ -145,8 +253,11 @@ function leadFormHtml(a) {
   const lead = a.lead;
   if (!lead || !lead.enabled) return '';
   const fields = (lead.fields || [])
-    .map((f) =>
-      `<input type="${escAttr(f.type || 'text')}" name="${escAttr(f.name)}" placeholder="${escAttr(f.label)}"${f.required ? ' required' : ''} autocomplete="on">`)
+    .map((f) => {
+      const type = f.type || 'text';
+      const mode = type === 'tel' ? ' inputmode="tel"' : type === 'email' ? ' inputmode="email"' : '';
+      return `<input type="${escAttr(type)}" name="${escAttr(f.name)}" placeholder="${escAttr(f.label)}"${f.required ? ' required' : ''}${mode} autocomplete="on">`;
+    })
     .join('\n      ');
   return `
 <section class="lead-box" id="lead">
@@ -154,6 +265,7 @@ function leadFormHtml(a) {
   <p class="lead-sub">${esc(lead.subtitle || '')}</p>
   <form class="lead-form" data-article="${escAttr(a.id)}" data-campaign="${escAttr(lead.campaign || a.id)}">
     ${fields}
+    <input type="text" name="website" class="lead-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
     <button type="submit">${esc(lead.buttonText || 'שליחה')}</button>
     <p class="lead-privacy">בלחיצה על הכפתור אני מאשר/ת קבלת פנייה בהתאם ל<a href="../pages/privacy.html">מדיניות הפרטיות</a></p>
   </form>
@@ -243,7 +355,7 @@ function buildArticles() {
       description: a.subtitle || '',
       image: [imgOf(a)],
       datePublished: a.date,
-      author: [{ '@type': 'Organization', name: a.author || site.siteTitle }],
+      author: [{ '@type': 'Organization', name: authorOf(a) }],
       publisher: { '@type': 'Organization', name: site.siteTitle },
       mainEntityOfPage: `${site.baseUrl}/${articleUrl(a)}`,
     };
@@ -265,12 +377,12 @@ function buildArticles() {
     <h1>${esc(a.title)}</h1>
     <p class="subtitle">${esc(a.subtitle || '')}</p>
     <div class="article-meta">
-      <span>✍️ ${esc(a.author || site.siteTitle)}</span>
+      <span>✍️ ${esc(authorOf(a))}</span>
       <span>🕐 ${fmtDate(a.date)}</span>
     </div>
   </header>
   <figure class="article-hero">
-    <img src="${escAttr(imgOf(a))}" alt="${escAttr(a.title)}" fetchpriority="high">
+    ${imgTag(a, { sizes: SIZES.article, eager: true })}
   </figure>
   ${a.imageCredit ? `<p class="img-credit">צילום: ${esc(a.imageCredit)}</p>` : ''}
   <div class="article-body">
@@ -314,7 +426,7 @@ function buildCategories() {
     writeFileSync(join(dir, `${c.slug}.html`),
       renderPage({
         title: `${c.name} | ${site.siteTitle}`,
-        description: `כל הכתבות בנושא ${c.name} במגזין 42`,
+        description: `כל הכתבות בנושא ${c.name} ב-${site.siteTitle}`,
         content, root: '../', activeCat: c.name,
         headExtra: `<link rel="canonical" href="${site.baseUrl}/category/${c.slug}.html">`,
       }));

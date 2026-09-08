@@ -11,13 +11,14 @@
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ROOT}}assets/css/style.css">
 <link rel="icon" href="{{ROOT}}assets/img/favicon.svg" type="image/svg+xml">
+{{TRACKING_HEAD}}
 </head>
 <body>
 <header class="site-header">
   <div class="container header-inner">
-    <a class="logo" href="{{ROOT}}index.html" aria-label="מגזין 42 - דף הבית">
-      <span class="logo-mark">42</span>
-      <span class="logo-text">מגזין <b>42</b></span>
+    <a class="logo" href="{{ROOT}}index.html" aria-label="{{SITE_TITLE}} - דף הבית">
+      <span class="logo-mark">{{LOGO_MARK}}</span>
+      <span class="logo-text" dir="ltr">{{LOGO_TEXT}}</span>
     </a>
     <button class="nav-toggle" aria-label="תפריט" aria-expanded="false">
       <span></span><span></span><span></span>
@@ -35,7 +36,7 @@
 <footer class="site-footer">
   <div class="container footer-inner">
     <div class="footer-brand">
-      <span class="logo-mark small">42</span>
+      <span class="logo-mark small">{{LOGO_MARK}}</span>
       <p>{{TAGLINE}}</p>
     </div>
     <nav class="footer-nav" aria-label="קישורים">
@@ -44,10 +45,10 @@
       <a href="{{ROOT}}pages/terms.html">תנאי שימוש</a>
       <a href="{{ROOT}}pages/accessibility.html">הצהרת נגישות</a>
     </nav>
-    <p class="footer-copy">© {{YEAR}} מגזין 42. כל הזכויות שמורות.</p>
+    <p class="footer-copy">© {{YEAR}} {{SITE_TITLE}}. כל הזכויות שמורות.</p>
   </div>
 </footer>
-<script>window.SITE={leadWebhook:"{{LEAD_WEBHOOK}}"};</script>
+<script>window.SITE={{SITE_CONFIG}};</script>
 <script src="{{ROOT}}assets/js/site.js" defer></script>
 </body>
 </html>

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>ניהול כתבות | מגזין 42</title>
+<title>ניהול | Channel 18</title>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;900&display=swap" rel="stylesheet">
 <style>
   :root { --brand:#0f1b2d; --accent:#e63946; --line:#e6e8ec; --muted:#6b7280; }
@@ -71,19 +71,24 @@
   #btn-logout { background:none; border:0; color:rgba(255,255,255,.7); font-family:inherit;
     font-size:13px; cursor:pointer; margin-inline-start:auto; display:none; }
   #btn-logout:hover { color:#fff; text-decoration:underline; }
+  a.btn { text-decoration:none; }
+  .leads-table { width:100%; border-collapse:collapse; font-size:13px; margin-top:12px; display:block; overflow-x:auto; }
+  .leads-table th, .leads-table td { padding:6px 8px; border-bottom:1px solid var(--line); text-align:start; white-space:nowrap; }
+  .leads-table th { background:#f7f8fa; font-weight:700; }
+  .leads-table td.status-new { color:#0e7c5a; font-weight:700; }
   @media (max-width:640px){ .row { grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
 <header>
-  <span class="mark">42</span>
-  <h1>ניהול כתבות - מגזין 42</h1>
+  <span class="mark">18</span>
+  <h1>ניהול - Channel 18</h1>
   <button id="btn-logout">התנתקות 🔒</button>
 </header>
 
 <div id="lock">
   <div class="lock-card">
-    <div class="mark">42</div>
+    <div class="mark">18</div>
     <h2>אזור ניהול</h2>
     <p>הזינו את סיסמת הניהול כדי להמשיך</p>
     <input type="password" id="lock-pass" placeholder="••••••••" autocomplete="current-password">
@@ -136,7 +141,7 @@
       </div>
       <div>
         <label>שם כותב/ת</label>
-        <input type="text" id="f-author" value="מערכת 42">
+        <input type="text" id="f-author" value="מערכת Channel 18">
       </div>
     </div>
 
@@ -202,6 +207,29 @@
       <button class="btn btn-ghost" id="btn-json">העתקת JSON</button>
     </div>
     <div id="preview"><h3></h3><p class="sub"></p><div class="body"></div></div>
+  </section>
+
+  <section class="panel" id="leadsPanel">
+    <h2>לידים</h2>
+    <div class="actions">
+      <a class="btn btn-ghost btn-sm" id="link-sheet" href="https://docs.google.com/spreadsheets/d/1Vw1TM5Jg_WiQTxBFJCvveNm_Bn5pcgYLcu28egueMXY" target="_blank" rel="noopener">📊 פתיחת גיליון הלידים</a>
+      <button class="btn btn-ghost btn-sm" id="btn-leads">הצגת לידים אחרונים</button>
+      <button class="btn btn-ghost btn-sm" id="btn-lead-settings">⚙️ התראות ו-webhooks</button>
+    </div>
+    <div class="hint">ניהול הלידים עצמו (סטטוס, הערות) נעשה בגיליון - עמודת "סטטוס" היא רשימה נפתחת. כאן רואים את האחרונים ומגדירים לאן כל ליד חדש נשלח.</div>
+    <div id="leadsList"></div>
+    <div id="leadSettings" style="display:none; margin-top:14px; padding:14px; background:#f7f8fa; border-radius:10px">
+      <label>מייל להתראה על כל ליד חדש</label>
+      <input type="text" id="ls-email" placeholder="sales@example.co.il (ריק = בלי מייל)">
+      <div class="hint">כל ליד שנקלט נשלח מיידית למייל הזה, עם קישור לחיוג ולוואטסאפ.</div>
+      <label>Webhooks להעברת לידים (כתובת אחת בכל שורה)</label>
+      <textarea id="ls-webhooks" style="min-height:90px" placeholder="https://hook.eu1.make.com/...&#10;https://hooks.zapier.com/hooks/catch/..."></textarea>
+      <div class="hint">כל ליד נשלח כ-JSON (POST) לכל כתובת ברשימה - ככה מחברים CRM, Make, Zapier, וואטסאפ ועוד. תוצאת השליחה נרשמת בעמודה "העברה" בגיליון.</div>
+      <div class="actions" style="margin-top:12px">
+        <button class="btn btn-primary btn-sm" id="btn-save-lead-settings">שמירת ההגדרות</button>
+        <button class="btn btn-ghost btn-sm" id="btn-test-lead">🧪 שליחת ליד בדיקה</button>
+      </div>
+    </div>
   </section>
 </div>
 
@@ -359,7 +387,7 @@
       $('f-title').value = a.title || '';
       $('f-subtitle').value = a.subtitle || '';
       $('f-category').value = a.category || CATEGORIES[0];
-      $('f-author').value = a.author || 'מערכת 42';
+      $('f-author').value = a.author || 'מערכת Channel 18';
       $('f-image').value = a.image || '';
       $('f-credit').value = a.imageCredit || '';
       $('f-slug').value = a.id;
@@ -472,7 +500,7 @@
           .then(function (res) {
             if (!res.success) throw new Error(res.message);
             $('f-image').value = res.url;
-            if (!$('f-credit').value) $('f-credit').value = 'מערכת 42';
+            if (!$('f-credit').value) $('f-credit').value = 'מערכת Channel 18';
             showStatus('התמונה הועלתה! (תהיה זמינה באתר תוך 2-1 דקות, התצוגה המקדימה מקומית)', true);
           })
           .catch(function (err) {
@@ -546,7 +574,7 @@
       category: $('f-category').value,
       image: $('f-image').value.trim(),
       imageCredit: $('f-credit').value.trim(),
-      author: $('f-author').value.trim() || 'מערכת 42',
+      author: $('f-author').value.trim() || 'מערכת Channel 18',
       date: new Date().toISOString(),
       featured: $('f-featured').checked,
       body: body,
@@ -609,6 +637,79 @@
     navigator.clipboard.writeText(JSON.stringify(article, null, 2)).then(function () {
       showStatus('ה-JSON הועתק ללוח.', true);
     });
+  });
+
+  /* ---------- לידים ---------- */
+  $('btn-lead-settings').addEventListener('click', function () {
+    var box = $('leadSettings');
+    if (box.style.display === 'block') { box.style.display = 'none'; return; }
+    var done = busy(this, 'טוען...');
+    api('getLeadSettings').then(function (res) {
+      if (!res.success) throw new Error(res.message);
+      $('ls-email').value = res.notifyEmail || '';
+      $('ls-webhooks').value = res.forwardWebhooks || '';
+      if (res.sheetUrl) $('link-sheet').href = res.sheetUrl;
+      box.style.display = 'block';
+    }).catch(function (err) {
+      if (err.message !== 'no-password') showStatus('שגיאה: ' + err.message, false);
+    }).finally(done);
+  });
+
+  $('btn-save-lead-settings').addEventListener('click', function () {
+    var done = busy(this, 'שומר...');
+    api('saveLeadSettings', { notifyEmail: $('ls-email').value.trim(), forwardWebhooks: $('ls-webhooks').value.trim() })
+      .then(function (res) {
+        if (!res.success) throw new Error(res.message);
+        showStatus('הגדרות הלידים נשמרו. מומלץ לשלוח ליד בדיקה כדי לוודא שהכול מגיע.', true);
+      })
+      .catch(function (err) { if (err.message !== 'no-password') showStatus('שגיאה: ' + err.message, false); })
+      .finally(done);
+  });
+
+  $('btn-test-lead').addEventListener('click', function () {
+    var done = busy(this, 'שולח...');
+    api('testLead', {}).then(function (res) {
+      if (!res.success) throw new Error(res.message);
+      var msg = 'ליד הבדיקה נקלט בגיליון (מסומן "בדיקה").';
+      msg += res.forwarded ? ' העברה ל-webhooks: ' + res.forwarded + '.' : ' לא מוגדרים webhooks להעברה.';
+      msg += res.notifyEmail ? ' נשלח מייל אל ' + res.notifyEmail + '.' : ' לא מוגדר מייל להתראה.';
+      showStatus(msg, true, res.sheetUrl, 'פתיחת הגיליון');
+    }).catch(function (err) {
+      if (err.message !== 'no-password') showStatus('שגיאה: ' + err.message, false);
+    }).finally(done);
+  });
+
+  $('btn-leads').addEventListener('click', function () {
+    var done = busy(this, 'טוען...');
+    api('getRecentLeads', { limit: 20 }).then(function (res) {
+      if (!res.success) throw new Error(res.message);
+      var show = ['תאריך', 'שעה', 'שם מלא', 'טלפון', 'עיר', 'כתבה', 'קמפיין', 'utm_source', 'סטטוס', 'דגלים', 'העברה'];
+      var idx = show.map(function (h) { return res.headers.indexOf(h); });
+      var table = document.createElement('table');
+      table.className = 'leads-table';
+      var thead = table.createTHead().insertRow();
+      show.forEach(function (h) { var th = document.createElement('th'); th.textContent = h; thead.appendChild(th); });
+      var tbody = table.createTBody();
+      res.rows.forEach(function (r) {
+        var tr = tbody.insertRow();
+        idx.forEach(function (i, n) {
+          var td = tr.insertCell();
+          td.textContent = i > -1 ? (r[i] || '') : '';
+          if (show[n] === 'סטטוס' && td.textContent === 'חדש') td.className = 'status-new';
+        });
+      });
+      var list = $('leadsList');
+      list.innerHTML = '';
+      if (!res.rows.length) {
+        list.textContent = 'עדיין אין לידים בגיליון.';
+      } else {
+        list.appendChild(table);
+      }
+      if (res.sheetUrl) $('link-sheet').href = res.sheetUrl;
+      showStatus('מוצגים ' + res.rows.length + ' לידים אחרונים מתוך ' + res.total + '. עריכת סטטוס והערות - בגיליון עצמו.', true);
+    }).catch(function (err) {
+      if (err.message !== 'no-password') showStatus('שגיאה: ' + err.message, false);
+    }).finally(done);
   });
 
   $('btn-preview').addEventListener('click', function () {

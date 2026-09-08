@@ -1,6 +1,9 @@
-/* מגזין 42 - סקריפט אתר */
+/* Channel 18 - סקריפט אתר */
 (function () {
   'use strict';
+
+  var SITE = window.SITE || {};
+  var TRACK = SITE.tracking || {};
 
   /* --- תפריט מובייל --- */
   var toggle = document.querySelector('.nav-toggle');
@@ -12,72 +15,146 @@
     });
   }
 
-  /* --- פרמטרי UTM (נשמרים לטובת טפסי לידים) --- */
-  var utm = {};
+  /* --- פרמטרי קמפיין (UTM + מזהי קליק של טאבולה/אאוטבריין/מטא/גוגל) - נשמרים לטובת טפסי הלידים --- */
+  var CAMPAIGN_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term',
+    'tblci', 'ob_click_id', 'fbclid', 'gclid', 'ttclid'];
+  var campaign = {};
   try {
     var params = new URLSearchParams(location.search);
-    ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'].forEach(function (k) {
-      if (params.get(k)) utm[k] = params.get(k);
+    CAMPAIGN_KEYS.forEach(function (k) {
+      if (params.get(k)) campaign[k] = params.get(k).slice(0, 200);
     });
-    if (Object.keys(utm).length) {
-      sessionStorage.setItem('utm42', JSON.stringify(utm));
+    if (Object.keys(campaign).length) {
+      sessionStorage.setItem('c18_campaign', JSON.stringify(campaign));
     } else {
-      var saved = sessionStorage.getItem('utm42');
-      if (saved) utm = JSON.parse(saved);
+      var saved = sessionStorage.getItem('c18_campaign');
+      if (saved) campaign = JSON.parse(saved);
     }
   } catch (e) { /* אחסון חסום - ממשיכים בלי */ }
 
-  /* --- שליחת טופס לידים --- */
+  /* --- אירוע "ליד" לפיקסלים (נשלח רק לפיקסלים שהוגדרו ב-data/site.json) --- */
+  function fireLeadEvent(name) {
+    try {
+      if (TRACK.taboolaId && window._tfa) {
+        window._tfa.push({ notify: 'event', name: TRACK.taboolaLeadEvent || 'lead', id: Number(TRACK.taboolaId) });
+      }
+      if (TRACK.outbrainId && window.obApi) window.obApi('track', TRACK.outbrainLeadEvent || 'Lead');
+      if (TRACK.metaPixelId && window.fbq) window.fbq('track', 'Lead', { content_name: name });
+      if (TRACK.ga4Id && window.gtag) window.gtag('event', 'generate_lead', { campaign: name });
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({ event: 'lead_submitted', campaign: name });
+    } catch (e) { /* פיקסל שנפל לא מפריע למשתמש */ }
+  }
+
+  /* --- טלפון ישראלי: מחזיר ספרות מנורמלות (05XXXXXXXX / 0XXXXXXXX) או '' --- */
+  function normalizePhone(raw) {
+    var d = String(raw || '').replace(/\D/g, '');
+    if (d.indexOf('972') === 0) d = '0' + d.slice(3);
+    if (/^0[57]\d{8}$/.test(d) || /^0[23489]\d{7}$/.test(d)) return d;
+    return '';
+  }
+
+  var uid = function () { return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10); };
+  var wait = function (ms) { return new Promise(function (res) { setTimeout(res, ms); }); };
+
+  /**
+   * שליחת ליד: POST כ-JSON (text/plain - בלי preflight), ואם נכשל - GET.
+   * עד 3 ניסיונות עם המתנה. leadId זהה בכל הניסיונות כדי שהשרת לא ירשום כפילות.
+   */
+  function sendLead(webhook, payload) {
+    var ok = function (data) {
+      if (data && data.success) return data;
+      throw new Error((data && data.message) || 'server error');
+    };
+    var viaPost = function () {
+      return fetch(webhook, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      }).then(function (r) { return r.json(); }).then(ok);
+    };
+    var viaGet = function () {
+      var qs = new URLSearchParams();
+      Object.keys(payload).forEach(function (k) {
+        if (payload[k] !== undefined && payload[k] !== null) qs.set(k, String(payload[k]));
+      });
+      return fetch(webhook + '?' + qs.toString(), { method: 'GET' })
+        .then(function (r) { return r.json(); }).then(ok);
+    };
+    var attempt = 0;
+    var run = function () {
+      attempt++;
+      return viaPost()
+        .catch(function () { return viaGet(); })
+        .catch(function (err) {
+          if (attempt >= 3) throw err;
+          return wait(attempt * 1500).then(run);
+        });
+    };
+    return run();
+  }
+
+  /* --- טפסי לידים --- */
   document.querySelectorAll('form.lead-form').forEach(function (form) {
     form.addEventListener('submit', function (ev) {
       ev.preventDefault();
 
-      var webhook = (window.SITE && window.SITE.leadWebhook) || '';
+      var webhook = SITE.leadWebhook || '';
       var box = form.closest('.lead-box');
       var successEl = box ? box.querySelector('.lead-success') : null;
       var errorEl = box ? box.querySelector('.lead-error') : null;
       var btn = form.querySelector('button[type="submit"]');
+      var showError = function (msg) {
+        if (!errorEl) return;
+        errorEl.textContent = msg;
+        errorEl.style.display = 'block';
+      };
 
       if (!webhook) {
-        if (errorEl) {
-          errorEl.textContent = 'טופס הלידים עדיין לא חובר (יש להגדיר leadWebhook בקובץ data/site.json).';
-          errorEl.style.display = 'block';
-        }
+        showError('טופס הלידים עדיין לא חובר (יש להגדיר leadWebhook בקובץ data/site.json).');
         return;
       }
 
-      var qs = new URLSearchParams();
-      qs.set('action', 'addLead');
-      qs.set('article', form.dataset.article || '');
-      qs.set('campaign', form.dataset.campaign || '');
-      qs.set('page', location.href.split('?')[0]);
-      Object.keys(utm).forEach(function (k) { qs.set(k, utm[k]); });
+      var payload = {
+        action: 'addLead',
+        leadId: uid(),
+        article: form.dataset.article || '',
+        campaign: form.dataset.campaign || '',
+        page: location.href.split('?')[0],
+        pageUrl: location.href.slice(0, 500),
+        referrer: (document.referrer || '').slice(0, 300)
+      };
+      Object.keys(campaign).forEach(function (k) { payload[k] = campaign[k]; });
 
       var valid = true;
       form.querySelectorAll('input, select').forEach(function (el) {
-        if (el.required && !el.value.trim()) valid = false;
-        qs.set(el.name, el.value.trim());
+        var v = el.value.trim();
+        if (el.required && !v) valid = false;
+        if (el.type === 'tel' && v) {
+          var phone = normalizePhone(v);
+          if (!phone) {
+            valid = false;
+            showError('מספר הטלפון לא נראה תקין - בדקו ונסו שוב.');
+            el.focus();
+          } else {
+            v = phone;
+          }
+        }
+        payload[el.name] = v;
       });
       if (!valid) return;
 
       if (btn) { btn.disabled = true; btn.dataset.orig = btn.textContent; btn.textContent = 'שולח...'; }
       if (errorEl) errorEl.style.display = 'none';
 
-      fetch(webhook + '?' + qs.toString(), { method: 'GET' })
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-          if (data && data.success) {
-            form.style.display = 'none';
-            if (successEl) successEl.style.display = 'block';
-          } else {
-            throw new Error((data && data.message) || 'server error');
-          }
+      sendLead(webhook, payload)
+        .then(function () {
+          form.style.display = 'none';
+          if (successEl) successEl.style.display = 'block';
+          fireLeadEvent(payload.campaign || payload.article);
         })
         .catch(function () {
-          if (errorEl) {
-            errorEl.textContent = 'משהו השתבש בשליחה. נסו שוב בעוד רגע.';
-            errorEl.style.display = 'block';
-          }
+          showError('משהו השתבש בשליחה. נסו שוב בעוד רגע.');
           if (btn) { btn.disabled = false; btn.textContent = btn.dataset.orig; }
         });
     });

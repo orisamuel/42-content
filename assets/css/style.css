@@ -1,4 +1,4 @@
-/* ===== מגזין 42 - עיצוב ראשי ===== */
+/* ===== Channel 18 - עיצוב ראשי ===== */
 :root {
   --ink: #101418;
   --ink-soft: #3d4550;
@@ -106,6 +106,8 @@ a { color: inherit; text-decoration: none; }
 .card-hero { min-height: 420px; }
 .card-hero .card-img, .card-side .card-img { position: absolute; inset: 0; }
 .card-hero img, .card-side img { width: 100%; height: 100%; object-fit: cover; }
+/* <picture> (גרסאות WebP רספונסיביות) צריך למלא את המסגרת בדיוק כמו <img> */
+.card-img picture, .article-hero picture { display: block; width: 100%; height: 100%; }
 .card-hero .card-body, .card-side .card-body {
   position: absolute;
   inset-inline: 0;
@@ -181,7 +183,8 @@ a { color: inherit; text-decoration: none; }
   padding-bottom: 16px;
   border-bottom: 1px solid var(--line);
 }
-.article-hero { border-radius: var(--radius); overflow: hidden; margin: 6px 0 4px; }
+.article-hero { border-radius: var(--radius); overflow: hidden; margin: 6px 0 4px; aspect-ratio: 16 / 9; background: var(--bg-soft); }
+.article-hero img { width: 100%; height: 100%; object-fit: cover; }
 .img-credit { font-size: 12px; color: var(--muted); margin: 6px 2px 0; }
 
 .article-body { font-size: 17.5px; margin-top: 22px; }
@@ -238,7 +241,9 @@ a { color: inherit; text-decoration: none; }
 }
 .lead-box h3 { font-size: 23px; font-weight: 800; margin-bottom: 6px; }
 .lead-box .lead-sub { color: rgba(255, 255, 255, .8); font-size: 15px; margin-bottom: 18px; }
-.lead-form { display: grid; gap: 12px; }
+.lead-form { display: grid; gap: 12px; position: relative; }
+/* מלכודת בוטים: שדה שמשתמש אמיתי לא רואה ולא ממלא */
+.lead-form .lead-hp { position: absolute; left: -9999px; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0; pointer-events: none; }
 .lead-form input, .lead-form select {
   width: 100%;
   padding: 13px 16px;

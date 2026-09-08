@@ -1,42 +1,59 @@
-# מגזין 42 - אתר תוכן
+# Channel 18 - אתר תוכן
 
-אתר תוכן סטטי בעברית (RTL) המתארח בחינם ב-GitHub Pages, עם עדכון אוטומטי מפידי RSS, ניסוח כתבות מחדש באמצעות Claude API, וטפסי איסוף לידים לגוגל שיטס.
+אתר תוכן סטטי בעברית (RTL) המתארח ב-GitHub Pages, עם עדכון אוטומטי מפידי RSS, ניסוח כתבות מחדש ותמונות AI באמצעות Gemini, וטפסי איסוף לידים לגוגל שיטס - כולל התראות מייל והעברה ל-CRM דרך webhooks.
 
 **כתובת האתר:** https://orisamuel.github.io/42-content/
+**פאנל ניהול:** https://orisamuel.github.io/42-content/admin/ (מוגן בסיסמה)
 
 ## איך זה עובד
 
 ```
-פידי RSS (ynet, וואלה, מעריב...)
-        │  כל 3 שעות (GitHub Actions)
+פידי RSS (ynet, וואלה, מעריב, גיקטיים)
+        │  פעם ביום, ראשון-חמישי (GitHub Actions)
         ▼
-scripts/fetch-rss.mjs  ──►  ניסוח מחדש עם Claude  ──►  data/rss-articles.json
-                                                              │
-data/articles.json  (כתבות ידניות + לידים)  ──────────────────┤
-                                                              ▼
-                                            scripts/build.mjs  ──►  דפי HTML
-                                                              │
-                                                              ▼
-                                                        GitHub Pages
+scripts/fetch-rss.mjs  ──►  ניסוח מחדש + תמונת AI (Gemini)  ──►  data/rss-articles.json
+                                                                        │
+data/articles.json  (כתבות ידניות + טפסי לידים)  ───────────────────────┤
+                                                                        ▼
+                                  scripts/build.mjs  ──►  דחיסת תמונות + WebP  ──►  דפי HTML
+                                                                        │
+                                                                        ▼
+                                                                  GitHub Pages
 ```
+
+## מיתוג
+
+השם, הלוגו והתיאור מוגדרים במקום אחד - `data/site.json`:
+
+- `siteTitle` - שם האתר (כותרות הדפים, הפוטר, JSON-LD)
+- `brand.mark` - הטקסט בריבוע האדום של הלוגו; `brand.text` + `brand.textBold` - טקסט הלוגו (החלק הרגיל והחלק המודגש)
+- `authorName` - שם הכותב ברירת המחדל לכתבות
+- `description`, `tagline` - תיאור ומוטו
+
+הפביקון נמצא ב-`assets/img/favicon.svg`. אחרי שינוי - push מפעיל בנייה והאתר מתעדכן תוך כמה דקות.
 
 ## יצירת כתבה חדשה
 
-**הדרך הקלה - עמוד הניהול:**
+**הדרך הקלה - פאנל הניהול:**
 
-1. גלשו אל `https://orisamuel.github.io/42-content/admin/` מכל מחשב והקלידו את סיסמת הניהול
+1. גלשו אל `/admin/` מכל מחשב והקלידו את סיסמת הניהול
 2. כתבו נושא ולחצו "✨ כתוב לי את הכתבה" - Gemini ימלא כותרת, כותרת משנה וגוף. אפשר כמובן גם לכתוב ידנית.
 3. תמונה ראשית: "🎨 צור תמונה עם AI" (לפי הכותרת) / "📁 העלאה מהמחשב" / הדבקת קישור
 4. ערכו במידת הצורך, הוסיפו טופס לידים בקליק אם רוצים, ולחצו "פרסום" - תקבלו קישור ישיר לכתבה
-5. תוך 1-2 דקות הכתבה באוויר
+5. תוך 2-3 דקות הכתבה באוויר
 
-**עריכת כתבה קיימת:** בפאנל הניהול - "טעינת רשימת הכתבות" ← בחירה ← "פתח לעריכה" ← "שמירת השינויים".
+**עריכת כתבה קיימת:** "טעינת רשימת הכתבות" ← בחירה ← "פתח לעריכה" ← "שמירת השינויים". כתבות RSS אפשר להפוך לקבועות ("📌 הפוך לכתבה קבועה") כדי שלא יתחלפו בסבב היומי.
 
 **תמונות וזכויות יוצרים:** כל כתבת RSS מקבלת אוטומטית תמונה שנוצרת עם Gemini (בלי תמונות מאתרי החדשות). אם היצירה נכשלת יש תמונת ברירת מחדל לכל קטגוריה (`assets/img/cat-*.jpg`). האתר מוגבל ל-`maxTotalArticles` כתבות (ברירת מחדל 20) - ה-RSS משלים את מה שהכתבות הידניות לא תופסות.
 
-יצירת טוקן: GitHub → Settings → Developer settings → Fine-grained personal access tokens → Generate new token → בחרו את הריפו `42-content` → הרשאת **Contents: Read and write**.
+**דרך חלופית:** עריכה ישירה של `data/articles.json` בגיטהאב (הפאנל יודע גם להעתיק JSON מוכן ללוח).
 
-**דרך חלופית:** עריכה ישירה של `data/articles.json` בגיטהאב (עמוד הניהול יודע גם להעתיק JSON מוכן ללוח).
+## תמונות וביצועים
+
+- כל תמונה שנכנסת לריפו (RSS, העלאה מהפאנל, תמונת AI) מטופלת אוטומטית בזמן הבנייה על ידי `scripts/optimize-images.mjs`: JPEG כבד נדחס ל-1200px, ונוצרות גרסאות WebP ברוחב 480 / 800 / 1200px.
+- הדפים משתמשים ב-`<picture>` + `srcset`, כך שטלפון מוריד כ-50KB לתמונה במקום כ-700KB. דף כתבה שלם שוקל כ-0.4MB.
+- הכלי דורש `npm install` (חבילת sharp). בלי sharp האתר עדיין נבנה - רק בלי הגרסאות.
+- הפעולה אידמפוטנטית: הרצה חוזרת לא משנה תמונות שכבר טופלו. גרסאות של תמונות שנמחקו מנוקות אוטומטית.
 
 ## ניסוח מחדש (Gemini)
 
@@ -46,56 +63,114 @@ data/articles.json  (כתבות ידניות + לידים)  ──────�
 - **מקומית (להרצות ידניות):** קובץ `.env` בתיקיית הפרויקט (לא עולה לגיט) עם השורה `GEMINI_API_KEY=...`
 
 נתמך גם מפתח Claude (`ANTHROPIC_API_KEY`) - אם מוגדרים שניהם, Gemini קודם.
-
 אופציונלי: להחלפת המודל, הוסיפו Repository Variable בשם `REWRITE_MODEL` (ברירת מחדל: `gemini-flash-latest`).
 
-## חיבור טפסי הלידים לגוגל שיטס (חד-פעמי)
+## לידים
 
-1. צרו גיליון Google Sheets חדש
-2. Extensions → Apps Script → הדביקו את התוכן של `apps-script/leads.gs`
-3. עדכנו בקוד את `SHEET_ID` (המחרוזת מכתובת הגיליון)
-4. Deploy → New deployment → Web app → Execute as: **Me**, Who has access: **Anyone**
-5. העתיקו את כתובת ה-Web app אל השדה `leadWebhook` בקובץ `data/site.json`
+### המסלול של ליד
 
-כל ליד נרשם בגיליון עם תאריך, פרטי הפונה, שם הכתבה, הקמפיין ופרמטרי UTM (לזיהוי מקור הקמפיין בטאבולה/אאוטבריין).
+טופס בכתבה ← `assets/js/site.js` שולח את הליד ל-Apps Script (POST, ועם GET כגיבוי; עד 3 ניסיונות) ← שורה חדשה בגיליון "לידים" ← מייל התראה (אם הוגדר) ← העברה כ-JSON לכל webhook שהוגדר (CRM / Make / Zapier / וואטסאפ) ← אירוע "ליד" לפיקסלים של הקמפיין.
 
-⚠️ אחרי כל שינוי בקוד ה-Apps Script חובה לבצע Deploy → Manage deployments → Edit → **New version** → Deploy.
+### הגדרות - מפאנל הניהול, בלוק "לידים"
+
+- **מייל להתראה** - כל ליד נשלח מיידית למייל, עם קישור לחיוג ולוואטסאפ.
+- **Webhooks להעברה** - כתובת https אחת בכל שורה. כל ליד נשלח לכל כתובת כ-POST עם JSON כזה:
+
+```json
+{
+  "source": "channel18", "leadId": "m1abc-x7k2", "receivedAt": "2026-09-08T09:12:00.000Z",
+  "date": "08/09/2026", "time": "12:12",
+  "fullname": "ישראל ישראלי", "phone": "0501234567", "email": "", "city": "",
+  "article": "top-ali-2026", "campaign": "top-ali", "page": "https://.../articles/top-ali-2026.html",
+  "pageUrl": "https://.../articles/top-ali-2026.html?utm_source=taboola&utm_campaign=ta1",
+  "utm_source": "taboola", "utm_medium": "", "utm_campaign": "ta1", "utm_content": "", "utm_term": "",
+  "clickId": "GiC...", "flags": [], "test": false
+}
+```
+
+- **שליחת ליד בדיקה** - מריץ את כל השרשרת ומדווח מה הגיע לאן (הליד מסומן "בדיקה" בגיליון).
+- ההגדרות נשמרות ב-Script Properties של ה-Apps Script (`NOTIFY_EMAIL`, `FORWARD_WEBHOOKS`) - לא בריפו הציבורי.
+
+### עמודות הגיליון
+
+תאריך, שעה, שם מלא, טלפון (מנורמל: 05XXXXXXXX), דוא"ל, עיר, כתבה, קמפיין, עמוד, utm_source/medium/campaign/content/term, **סטטוס** (רשימה נפתחת: חדש / בטיפול / נקבעה פגישה / נסגר / לא רלוונטי / כפול), הערות, מזהה ליד, מזהה קליק (tblci / ob_click_id / fbclid / gclid), כתובת מלאה, דגלים, העברה (תוצאת השליחה ל-webhooks).
+
+עמודות חדשות מתווספות לגיליון קיים אוטומטית (בסוף), בלי לפגוע בנתונים.
+
+### הגנות
+
+- מלכודת בוטים (שדה נסתר בטופס - אם מולא, הליד נזרק בשקט)
+- נרמול ואימות טלפון ישראלי בדפדפן ובשרת
+- זיהוי כפילויות: אותו טלפון בתוך 24 שעות מסומן "כפול"; ניסיון חוזר של אותה שליחה (אותו leadId) לא יוצר שורה נוספת
+- LockService - כתיבה בטוחה גם כשכמה לידים מגיעים באותה שנייה
+
+### חיבור ראשוני / עדכון קוד ה-Apps Script
+
+1. פתחו את הגיליון ← Extensions ← Apps Script, והדביקו את התוכן של `apps-script/leads.gs`
+2. ודאו ש-`SHEET_ID` בקוד תואם לגיליון
+3. Deploy ← New deployment ← Web app ← Execute as: **Me**, Who has access: **Anyone**
+4. העתיקו את כתובת ה-Web app אל `leadWebhook` ב-`data/site.json` (וגם ל-`API` בראש `admin/index.html`)
+5. Project Settings ← Script Properties: `ADMIN_PASSWORD`, `GH_TOKEN`, `GEMINI_KEY`
+
+⚠️ אחרי כל שינוי בקוד ה-Apps Script חובה: Deploy ← Manage deployments ← Edit ← **New version** ← Deploy. אחרת הכתובת החיה ממשיכה להריץ את הקוד הישן.
+
+## פיקסלים ומדידה (טאבולה / אאוטבריין / מטא / GA4)
+
+ב-`data/site.json` תחת `tracking`. ערך ריק = הפיקסל לא נטען כלל.
+
+| שדה | מה לשים |
+|---|---|
+| `taboolaId` | מספר החשבון בטאבולה (Account ID, מספרי) |
+| `outbrainId` | מזהה המפרסם באאוטבריין (OB_ADV_ID) |
+| `metaPixelId` | מזהה הפיקסל של מטא (מספרי) |
+| `ga4Id` | מזהה מדידה של GA4 (`G-XXXXXXX`) |
+
+כשמוגדר, הפיקסל נטען בכל דף, ואחרי שליחת טופס לידים נשלח אוטומטית אירוע ליד: `lead` בטאבולה, `Lead` באאוטבריין ובמטא, `generate_lead` ב-GA4 (שמות האירועים בטאבולה/אאוטבריין ניתנים לשינוי ב-`taboolaLeadEvent` / `outbrainLeadEvent`). כך הפלטפורמות יכולות לבצע אופטימיזציה ללידים ולא רק לקליקים.
+
+לקמפיינים קשרו לכתובת כתבה עם פרמטרים, למשל:
+`https://orisamuel.github.io/42-content/articles/tax-refund-check-2026.html?utm_source=taboola&utm_campaign=tax1&utm_content={site}&tblci={click_id}`
+
+הפרמטרים (UTM ומזהי קליק) נשמרים בדפדפן ומצורפים לכל ליד שנשלח מאותה גלישה.
+
+בכל עמוד כתבה יש גם אזור פרסום מוכן (`div#taboola-below-article-thumbnails`) - קוד widget של טאבולה/אאוטבריין מודבק ב-`scripts/build.mjs` (חפשו "אזור פרסום").
 
 ## ניהול פידי ה-RSS
 
-עריכת הרשימה בקובץ `data/site.json` תחת `feeds` - לכל פיד: שם, כתובת ה-RSS וקטגוריה. אפשר גם לכוון:
+עריכת הרשימה ב-`data/site.json` תחת `feeds` - לכל פיד: שם, כתובת ה-RSS וקטגוריה. אפשר גם לכוון:
 
-- `rssPerFeed` - כמה כתבות למשוך מכל פיד (ברירת מחדל 8)
-- `maxRssArticles` - כמה כתבות RSS לשמור באתר בסך הכול (ברירת מחדל 36)
+- `rssPerFeed` - כמה כתבות למשוך מכל פיד (ברירת מחדל 6)
+- `maxTotalArticles` - כמה כתבות בסך הכול באתר, ידניות + RSS (ברירת מחדל 20)
 
-## פרסום (Taboola / Outbrain)
+## סקייל
 
-בכל עמוד כתבה יש אזור פרסום מוכן (`div#taboola-below-article-thumbnails`). כשתקבלו קוד widget מטאבולה - הדביקו אותו בתבנית `templates/layout.html` או בקובץ `scripts/build.mjs` (חפשו "אזור פרסום").
-
-לקמפיינים: קשרו לכתובת כתבה עם פרמטרי UTM, למשל:
-`https://orisamuel.github.io/42-content/articles/tax-refund-check-2026.html?utm_source=taboola&utm_campaign=tax1`
-
-הפרמטרים נשמרים ומצורפים אוטומטית לכל ליד שנשלח.
+- האתר סטטי לחלוטין - אין שרת ואין מסד נתונים, כל דף הוא קובץ HTML שמוגש דרך ה-CDN של GitHub Pages. עשרות אלפי גולשים ביום לא מעמיסים על שום דבר.
+- המגבלה הרכה של GitHub Pages היא כ-100GB תעבורה בחודש. דף כתבה שוקל כ-0.4MB אחרי דחיסת התמונות, כלומר כ-250 אלף צפיות בחודש לפני שמתקרבים למגבלה.
+- מעבר לזה (או לקמפיינים גדולים לאורך זמן): דומיין משלו + Cloudflare בחינם מול GitHub Pages (Cloudflare מגיש מהמטמון, בלי מגבלת תעבורה), או Cloudflare Pages שמתחבר לאותו ריפו. שני המסלולים לא דורשים שינוי בקוד - רק עדכון `baseUrl` ב-`data/site.json` וקובץ `CNAME`.
+- לידים: Apps Script מתאים בנוחות למאות עד אלפי לידים ביום. מעל כ-10 אלף ביום או פרצים של עשרות לידים בשנייה - מעבירים את הקליטה ל-Cloudflare Worker או ישירות ל-API של ה-CRM.
 
 ## מבנה הפרויקט
 
 | נתיב | תפקיד |
 |---|---|
-| `data/site.json` | הגדרות האתר: שם, קטגוריות, פידים, webhook לידים |
+| `data/site.json` | הגדרות האתר: מיתוג, קטגוריות, פידים, webhook לידים, פיקסלים |
 | `data/articles.json` | כתבות ידניות (כולל הגדרות טופס לידים) |
 | `data/rss-articles.json` | כתבות RSS מנוסחות (נוצר אוטומטית - לא לערוך) |
 | `templates/layout.html` | תבנית העמוד (header/footer) |
-| `assets/` | עיצוב, סקריפטים, אייקונים |
 | `content/pages/` | תוכן העמודים הסטטיים (אודות, פרטיות...) |
+| `assets/` | עיצוב, סקריפטים, אייקונים, תמונות |
 | `scripts/build.mjs` | מחולל הדפים |
-| `scripts/fetch-rss.mjs` | משיכת RSS + ניסוח מחדש |
-| `admin/` | עמוד ניהול ליצירת כתבות |
-| `apps-script/leads.gs` | קוד צד-שרת ללידים (מודבק בגוגל) |
+| `scripts/optimize-images.mjs` | דחיסת תמונות ויצירת WebP |
+| `scripts/fetch-rss.mjs` | משיכת RSS + ניסוח מחדש + תמונות AI |
+| `scripts/gen-image.mjs` | יצירת תמונות עם Gemini |
+| `admin/` | פאנל ניהול: כתבות, תמונות, לידים |
+| `apps-script/leads.gs` | קוד צד-שרת (Apps Script): לידים, פרסום, AI |
+| `.github/workflows/` | בנייה ופריסה (push) + סבב RSS יומי |
 
 ## הרצה מקומית
 
 ```bash
-node scripts/fetch-rss.mjs   # משיכת תוכן טרי (אופציונלי)
+npm install                  # פעם אחת - sharp לדחיסת תמונות
+node scripts/fetch-rss.mjs   # משיכת תוכן טרי (אופציונלי, דורש מפתח ב-.env)
 node scripts/build.mjs       # בניית הדפים
 ```
 

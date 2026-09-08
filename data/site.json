@@ -1,10 +1,21 @@
 {
-  "siteName": "42",
-  "siteTitle": "מגזין 42",
+  "siteName": "Channel 18",
+  "siteTitle": "Channel 18",
+  "brand": { "mark": "18", "text": "Channel", "textBold": "18" },
+  "authorName": "מערכת Channel 18",
   "tagline": "התוכן שמעניין אתכם באמת",
-  "description": "מגזין 42 - חדשות, כלכלה, צרכנות, טכנולוגיה ולייפסטייל. כל התוכן שמעניין אתכם במקום אחד.",
+  "description": "Channel 18 - חדשות, כלכלה, צרכנות, טכנולוגיה ולייפסטייל. כל התוכן שמעניין אתכם במקום אחד.",
   "baseUrl": "https://orisamuel.github.io/42-content",
   "leadWebhook": "https://script.google.com/macros/s/AKfycbz4XJXiKdMbF6nxmfedy0SwdnbXgpdTfzKzFWMDtVmynumXSn1i-VBN__dk89RjKgRU4A/exec",
+  "tracking": {
+    "_help": "פיקסלים לקמפיינים. ריק = כבוי. taboolaId = מספר החשבון בטאבולה (Account ID), outbrainId = מזהה המפרסם (OB_ADV_ID), metaPixelId = מזהה פיקסל של מטא, ga4Id = G-XXXXXXX. אחרי שליחת טופס לידים נשלח אוטומטית אירוע ליד לכל פיקסל שמוגדר.",
+    "taboolaId": "",
+    "taboolaLeadEvent": "lead",
+    "outbrainId": "",
+    "outbrainLeadEvent": "Lead",
+    "metaPixelId": "",
+    "ga4Id": ""
+  },
   "categories": [
     { "name": "חדשות", "slug": "news" },
     { "name": "כלכלה", "slug": "economy" },

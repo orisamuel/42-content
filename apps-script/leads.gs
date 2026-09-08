@@ -1,9 +1,12 @@
 /**
- * מגזין 42 - שרת ניהול: לידים + פרסום/עריכת כתבות + יצירת תוכן ותמונות
+ * Channel 18 - שרת ניהול: לידים + פרסום/עריכת כתבות + יצירת תוכן ותמונות
  * =====================================================================
  * נפרס כ-Web app: Execute as Me | Who has access: Anyone
  *
  * סודות (Script Properties): ADMIN_PASSWORD, GH_TOKEN, GEMINI_KEY
+ * הגדרות לידים (Script Properties, נערכות מפאנל הניהול -> "לידים"):
+ *   NOTIFY_EMAIL     - מייל שמקבל התראה על כל ליד (ריק = בלי)
+ *   FORWARD_WEBHOOKS - כתובות https (מופרדות בשורה/פסיק) שכל ליד נשלח אליהן כ-JSON (CRM / Make / Zapier)
  *
  * חשוב: אחרי כל שינוי בקוד יש לבצע Deploy -> Manage deployments ->
  * Edit -> New version -> Deploy (אחרת הכתובת החיה לא מתעדכנת!)
@@ -18,11 +21,15 @@ var SITE_BASE = 'https://orisamuel.github.io/42-content';
 var TEXT_MODEL = 'gemini-flash-latest';
 var IMAGE_MODELS = ['gemini-3.1-flash-image-preview', 'gemini-2.5-flash-image', 'gemini-3-pro-image'];
 
+/* עמודות הגיליון. עמודות חדשות מתווספות בסוף אוטומטית לגיליון קיים (ensureHeaders) */
 var HEADERS = [
   'תאריך', 'שעה', 'שם מלא', 'טלפון', 'דוא"ל', 'עיר',
   'כתבה', 'קמפיין', 'עמוד',
-  'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'
+  'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term',
+  'סטטוס', 'הערות', 'מזהה ליד', 'מזהה קליק', 'כתובת מלאה', 'דגלים', 'העברה'
 ];
+var STATUSES = ['חדש', 'בטיפול', 'נקבעה פגישה', 'נסגר', 'לא רלוונטי', 'כפול'];
+var SHEET_URL = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID;
 
 /* ---------- GET: לידים מהאתר (ללא סיסמה) ---------- */
 function doGet(e) {
@@ -45,6 +52,11 @@ function doGet(e) {
 function doPost(e) {
   try {
     var req = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+
+    /* לידים מהאתר - ציבורי, בלי סיסמה (POST כ-text/plain כדי לעקוף preflight של CORS) */
+    if (req.action === 'addLead') return addLead(req);
+    if (req.action === 'ping') return jsonResponse({ success: true, message: 'pong' });
+
     var props = PropertiesService.getScriptProperties();
     var pass = props.getProperty('ADMIN_PASSWORD');
     if (!pass || req.password !== pass) {
@@ -67,6 +79,14 @@ function doPost(e) {
         return uploadImage(req, props);
       case 'generateImage':
         return generateImageAction(req, props);
+      case 'getLeadSettings':
+        return getLeadSettings(props);
+      case 'saveLeadSettings':
+        return saveLeadSettings(req, props);
+      case 'testLead':
+        return testLead(req);
+      case 'getRecentLeads':
+        return getRecentLeads(req);
       case 'checkAuth':
         return jsonResponse({ success: true, message: 'הסיסמה תקינה' });
       default:
@@ -367,7 +387,7 @@ function generateArticle(req, props) {
   if (!key) return jsonResponse({ success: false, message: 'GEMINI_KEY לא מוגדר ב-Script Properties' });
   if (!req.topic) return jsonResponse({ success: false, message: 'חסר נושא לכתבה' });
 
-  var system = 'אתה כותב תוכן בכיר במגזין דיגיטלי ישראלי בשם "מגזין 42". כתוב כתבת מגזין בעברית רהוטה על הנושא שתקבל.\n' +
+  var system = 'אתה כותב תוכן בכיר במגזין דיגיטלי ישראלי בשם "Channel 18". כתוב כתבת מגזין בעברית רהוטה על הנושא שתקבל.\n' +
     'כללים מחייבים:\n' +
     '- אל תמציא עובדות ספציפיות: בלי מספרים מדויקים, שמות של אנשים או חברות, מחקרים או ציטוטים פיקטיביים. ידע כללי ועצות מעשיות - כן.\n' +
     '- title: כותרת מסקרנת ומזמינה אך מדויקת.\n' +
@@ -414,44 +434,290 @@ function generateArticle(req, props) {
 }
 
 /* ---------- לידים ---------- */
+/**
+ * קליטת ליד מהאתר. מגיע כ-POST JSON (ברירת מחדל) או כ-GET (תאימות לאחור).
+ * שדות: fullname, phone, email, city, article, campaign, page, pageUrl, utm_*,
+ *        tblci / ob_click_id / fbclid / gclid (מזהי קליק לקמפיינים),
+ *        leadId  - מזהה ייחודי מהדפדפן: ניסיון חוזר עם אותו מזהה לא יוצר שורה כפולה,
+ *        website - מלכודת בוטים: שדה נסתר שחייב להישאר ריק.
+ */
 function addLead(p) {
-  if (!p.fullname && !p.phone && !p.email) {
+  p = p || {};
+  if (p.website) return jsonResponse({ success: true, message: 'ok' }); // בוט מילא שדה נסתר - מתעלמים בשקט
+
+  var phone = normalizePhone(p.phone);
+  if (!p.fullname && !phone && !p.email) {
     return jsonResponse({ success: false, message: 'לא התקבלו פרטים' });
   }
-  var sheet = ensureSheet(SHEET_NAME, HEADERS);
+
+  var cache = CacheService.getScriptCache();
+  var leadId = String(p.leadId || '').replace(/[^\w-]/g, '').slice(0, 64) || Utilities.getUuid();
+  if (cache.get('lead:' + leadId)) {
+    return jsonResponse({ success: true, message: 'הליד כבר נקלט', leadId: leadId, duplicate: true });
+  }
+
+  var flags = [];
+  if (p.phone && !phone) flags.push('טלפון לא תקין');
+  var isDup = Boolean(phone && cache.get('phone:' + phone));
+  if (isDup) flags.push('כפול (24 שעות)');
+  if (p.test) flags.push('בדיקה');
+
   var now = new Date();
-  sheet.appendRow([
-    Utilities.formatDate(now, 'Asia/Jerusalem', 'dd/MM/yyyy'),
-    Utilities.formatDate(now, 'Asia/Jerusalem', 'HH:mm'),
-    p.fullname || '',
-    "'" + (p.phone || ''),
-    p.email || '',
-    p.city || '',
-    p.article || '',
-    p.campaign || '',
-    p.page || '',
-    p.utm_source || '',
-    p.utm_medium || '',
-    p.utm_campaign || '',
-    p.utm_content || '',
-    p.utm_term || ''
-  ]);
-  return jsonResponse({ success: true, message: 'הליד נקלט' });
+  var clickId = p.tblci || p.ob_click_id || p.fbclid || p.gclid || p.ttclid || '';
+  var row = {
+    'תאריך': Utilities.formatDate(now, 'Asia/Jerusalem', 'dd/MM/yyyy'),
+    'שעה': Utilities.formatDate(now, 'Asia/Jerusalem', 'HH:mm'),
+    'שם מלא': str(p.fullname),
+    'טלפון': phone ? "'" + phone : str(p.phone),
+    'דוא"ל': str(p.email),
+    'עיר': str(p.city),
+    'כתבה': str(p.article),
+    'קמפיין': str(p.campaign),
+    'עמוד': str(p.page),
+    'utm_source': str(p.utm_source),
+    'utm_medium': str(p.utm_medium),
+    'utm_campaign': str(p.utm_campaign),
+    'utm_content': str(p.utm_content),
+    'utm_term': str(p.utm_term),
+    'סטטוס': isDup ? 'כפול' : 'חדש',
+    'הערות': '',
+    'מזהה ליד': leadId,
+    'מזהה קליק': str(clickId),
+    'כתובת מלאה': str(p.pageUrl),
+    'דגלים': flags.join(', '),
+    'העברה': ''
+  };
+
+  /* כתיבה לגיליון תחת נעילה - כמה לידים באותה שנייה לא דורסים זה את זה */
+  var lock = LockService.getScriptLock();
+  var locked = lock.tryLock(15000);
+  var sheet, headers, rowIndex;
+  try {
+    sheet = ensureSheet(SHEET_NAME);
+    headers = ensureHeaders(sheet);
+    sheet.appendRow(headers.map(function (h) { return row.hasOwnProperty(h) ? row[h] : ''; }));
+    rowIndex = sheet.getLastRow();
+  } finally {
+    if (locked) lock.releaseLock();
+  }
+
+  cache.put('lead:' + leadId, '1', 3600);
+  if (phone) cache.put('phone:' + phone, '1', 86400);
+
+  /* העברה ל-webhooks חיצוניים (CRM / Make / Zapier) והתראה במייל. כישלון שם לא מכשיל את הליד */
+  var forwarded = forwardLead(row, flags);
+  if (forwarded) {
+    var col = headers.indexOf('העברה') + 1;
+    if (col > 0) sheet.getRange(rowIndex, col).setValue(forwarded);
+  }
+  notifyLead(row, flags);
+
+  return jsonResponse({ success: true, message: 'הליד נקלט', leadId: leadId });
 }
 
-/* ---------- עזרים ---------- */
-function ensureSheet(name, headers) {
+function str(v) { return v == null ? '' : String(v).slice(0, 500); }
+
+/** נרמול טלפון ישראלי: 05XXXXXXXX / 07XXXXXXXX / 0XXXXXXXX (קווי). מחזיר '' אם לא תקין */
+function normalizePhone(raw) {
+  if (!raw) return '';
+  var d = String(raw).replace(/\D/g, '');
+  if (d.indexOf('972') === 0) d = '0' + d.slice(3);
+  if (/^0[57]\d{8}$/.test(d) || /^0[23489]\d{7}$/.test(d)) return d;
+  return '';
+}
+
+function ensureSheet(name) {
   var ss = SpreadsheetApp.openById(SHEET_ID);
   var sheet = ss.getSheetByName(name);
   if (!sheet) {
     sheet = ss.insertSheet(name);
-    sheet.appendRow(headers);
-    sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
+    sheet.appendRow(HEADERS);
+    sheet.getRange(1, 1, 1, HEADERS.length).setFontWeight('bold');
     sheet.setFrozenRows(1);
+    applyStatusValidation(sheet, HEADERS);
   }
   return sheet;
 }
 
+/** משלים עמודות חסרות בשורת הכותרת (בסוף, בלי להזיז נתונים קיימים) ומחזיר את סדר הכותרות בפועל */
+function ensureHeaders(sheet) {
+  var lastCol = Math.max(sheet.getLastColumn(), 1);
+  var current = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function (v) { return String(v).trim(); });
+  while (current.length && !current[current.length - 1]) current.pop();
+  var missing = HEADERS.filter(function (h) { return current.indexOf(h) === -1; });
+  if (missing.length) {
+    sheet.getRange(1, current.length + 1, 1, missing.length).setValues([missing]).setFontWeight('bold');
+    current = current.concat(missing);
+    applyStatusValidation(sheet, current);
+  }
+  return current;
+}
+
+/** רשימה נפתחת בעמודת הסטטוס - כדי שניהול הלידים בגיליון יהיה אחיד */
+function applyStatusValidation(sheet, headers) {
+  var col = headers.indexOf('סטטוס') + 1;
+  if (col < 1) return;
+  var rule = SpreadsheetApp.newDataValidation().requireValueInList(STATUSES, true).setAllowInvalid(true).build();
+  sheet.getRange(2, col, Math.max(sheet.getMaxRows() - 1, 1), 1).setDataValidation(rule);
+}
+
+/** ה-JSON שנשלח ל-webhooks חיצוניים - מפתחות באנגלית כדי שכל CRM/אוטומציה יבינו */
+function leadPayload(row, flags) {
+  return {
+    source: 'channel18',
+    leadId: row['מזהה ליד'],
+    receivedAt: new Date().toISOString(),
+    date: row['תאריך'],
+    time: row['שעה'],
+    fullname: row['שם מלא'],
+    phone: String(row['טלפון'] || '').replace(/^'/, ''),
+    email: row['דוא"ל'],
+    city: row['עיר'],
+    article: row['כתבה'],
+    campaign: row['קמפיין'],
+    page: row['עמוד'],
+    pageUrl: row['כתובת מלאה'],
+    utm_source: row['utm_source'],
+    utm_medium: row['utm_medium'],
+    utm_campaign: row['utm_campaign'],
+    utm_content: row['utm_content'],
+    utm_term: row['utm_term'],
+    clickId: row['מזהה קליק'],
+    flags: flags,
+    test: flags.indexOf('בדיקה') > -1
+  };
+}
+
+function getForwardUrls() {
+  var raw = PropertiesService.getScriptProperties().getProperty('FORWARD_WEBHOOKS') || '';
+  return raw.split(/[\s,]+/).filter(function (u) { return /^https?:\/\/\S+$/.test(u); });
+}
+
+/** שולח את הליד לכל ה-webhooks במקביל ומחזיר סיכום קצר לעמודת "העברה" */
+function forwardLead(row, flags) {
+  var urls = getForwardUrls();
+  if (!urls.length) return '';
+  var body = JSON.stringify(leadPayload(row, flags));
+  var requests = urls.map(function (u) {
+    return { url: u, method: 'post', contentType: 'application/json', payload: body, muteHttpExceptions: true };
+  });
+  var results = [];
+  try {
+    var responses = UrlFetchApp.fetchAll(requests);
+    for (var i = 0; i < responses.length; i++) {
+      var code = responses[i].getResponseCode();
+      results.push(hostOf(urls[i]) + ': ' + (code >= 200 && code < 300 ? 'נשלח' : 'שגיאה ' + code));
+    }
+  } catch (err) {
+    results.push('שגיאה: ' + err);
+  }
+  return results.join(' | ');
+}
+
+function hostOf(url) {
+  var m = String(url).match(/^https?:\/\/([^\/?#]+)/i);
+  return m ? m[1] : url;
+}
+
+/** התראה במייל על ליד חדש (אם הוגדר NOTIFY_EMAIL) עם קישורי חיוג ווואטסאפ */
+function notifyLead(row, flags) {
+  var to = PropertiesService.getScriptProperties().getProperty('NOTIFY_EMAIL') || '';
+  if (!to) return;
+  try {
+    var phone = String(row['טלפון'] || '').replace(/^'/, '');
+    var subject = (flags.indexOf('בדיקה') > -1 ? '[בדיקה] ' : '') +
+      'ליד חדש: ' + (row['שם מלא'] || phone) + (row['קמפיין'] ? ' - ' + row['קמפיין'] : '');
+    var lines = [
+      ['שם', row['שם מלא']], ['טלפון', phone], ['דוא"ל', row['דוא"ל']], ['עיר', row['עיר']],
+      ['כתבה', row['כתבה']], ['קמפיין', row['קמפיין']],
+      ['מקור', [row['utm_source'], row['utm_medium'], row['utm_campaign']].filter(String).join(' / ')],
+      ['זמן', row['תאריך'] + ' ' + row['שעה']], ['דגלים', row['דגלים']]
+    ].filter(function (l) { return l[1]; });
+    var html = '<div dir="rtl" style="font-family:Arial,sans-serif;font-size:15px">' +
+      '<h2 style="margin:0 0 12px">ליד חדש מ-Channel 18</h2>' +
+      '<table cellpadding="6" style="border-collapse:collapse">' +
+      lines.map(function (l) {
+        return '<tr><td style="color:#666">' + l[0] + '</td><td><b>' + escapeHtml(l[1]) + '</b></td></tr>';
+      }).join('') +
+      '</table>' +
+      (phone ? '<p><a href="tel:' + phone + '">📞 התקשרו עכשיו</a> · <a href="https://wa.me/972' + phone.slice(1) + '">💬 וואטסאפ</a></p>' : '') +
+      '<p style="color:#888;font-size:12px"><a href="' + SHEET_URL + '">לגיליון הלידים</a></p></div>';
+    MailApp.sendEmail({ to: to, subject: subject, htmlBody: html, name: 'Channel 18 לידים' });
+  } catch (err) { /* מייל שנפל לא מכשיל את הליד */ }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"]/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+  });
+}
+
+/* ---------- ניהול לידים מפאנל הניהול (עם סיסמה) ---------- */
+function getLeadSettings(props) {
+  return jsonResponse({
+    success: true,
+    notifyEmail: props.getProperty('NOTIFY_EMAIL') || '',
+    forwardWebhooks: getForwardUrls().join('\n'),
+    sheetUrl: SHEET_URL
+  });
+}
+
+function saveLeadSettings(req, props) {
+  var email = String(req.notifyEmail || '').trim();
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return jsonResponse({ success: false, message: 'כתובת המייל לא תקינה' });
+  }
+  var urls = String(req.forwardWebhooks || '').split(/[\s,]+/).filter(Boolean);
+  for (var i = 0; i < urls.length; i++) {
+    if (!/^https:\/\/\S+$/.test(urls[i])) {
+      return jsonResponse({ success: false, message: 'כתובת webhook לא תקינה (חייבת להתחיל ב-https://): ' + urls[i] });
+    }
+  }
+  props.setProperty('NOTIFY_EMAIL', email);
+  props.setProperty('FORWARD_WEBHOOKS', urls.join('\n'));
+  return jsonResponse({ success: true, message: 'הגדרות הלידים נשמרו' });
+}
+
+/** ליד בדיקה שעובר את כל השרשרת (גיליון, מייל, webhooks) ומסומן "בדיקה" */
+function testLead(req) {
+  var res = addLead({
+    leadId: 'test-' + new Date().getTime(),
+    fullname: 'ליד בדיקה',
+    phone: '0501234567',
+    email: 'test@example.com',
+    city: 'תל אביב',
+    article: 'test',
+    campaign: (req && req.campaign) || 'test',
+    page: SITE_BASE + '/',
+    pageUrl: SITE_BASE + '/?utm_source=test',
+    utm_source: 'test',
+    utm_medium: 'admin',
+    utm_campaign: 'test-lead',
+    test: true
+  });
+  var data = JSON.parse(res.getContent());
+  var sheet = ensureSheet(SHEET_NAME);
+  var headers = ensureHeaders(sheet);
+  var last = sheet.getRange(sheet.getLastRow(), 1, 1, headers.length).getValues()[0];
+  var col = headers.indexOf('העברה');
+  data.forwarded = col > -1 ? String(last[col] || '') : '';
+  data.notifyEmail = PropertiesService.getScriptProperties().getProperty('NOTIFY_EMAIL') || '';
+  data.sheetUrl = SHEET_URL;
+  return jsonResponse(data);
+}
+
+function getRecentLeads(req) {
+  var sheet = ensureSheet(SHEET_NAME);
+  var headers = ensureHeaders(sheet);
+  var lastRow = sheet.getLastRow();
+  var n = Math.min(Number((req && req.limit) || 20), 100);
+  if (lastRow < 2) return jsonResponse({ success: true, headers: headers, rows: [], total: 0, sheetUrl: SHEET_URL });
+  var start = Math.max(2, lastRow - n + 1);
+  var values = sheet.getRange(start, 1, lastRow - start + 1, headers.length).getDisplayValues();
+  return jsonResponse({ success: true, headers: headers, rows: values.reverse(), total: lastRow - 1, sheetUrl: SHEET_URL });
+}
+
+/* ---------- עזרים ---------- */
 function jsonResponse(obj) {
   return ContentService
     .createTextOutput(JSON.stringify(obj))
