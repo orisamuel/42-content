@@ -125,6 +125,10 @@ clasp update-deployment AKfycbz4XJXiKdMbF6nxmfedy0SwdnbXgpdTfzKzFWMDtVmynumXSn1i
 הגרסה החדשה חיה מיידית באותה כתובת (`leadWebhook`). לחזרה לגרסה קודמת: אותה פקודה עם `-V` של הגרסה הישנה.
 `clasp list-deployments` מציג את הפריסות והגרסאות. הסודות (ADMIN_PASSWORD, GH_TOKEN, GEMINI_KEY, NOTIFY_EMAIL, FORWARD_WEBHOOKS) יושבים ב-Script Properties ולא נפגעים מפריסה.
 
+### הטוקן של GitHub (פרסום כתבות ותמונות מהפאנל)
+
+הפאנל כותב לריפו דרך Personal Access Token ששמור ב-Script Properties (`GH_TOKEN`). **הטוקן פוקע** (ברירת המחדל של GitHub היא 30 יום), ואז פרסום, עריכה, העלאת תמונות ויצירת תמונות נכשלים עם "שמירה לגיטהאב נכשלה [GitHub 401 ...]". חידוש: GitHub ← Settings ← Developer settings ← Personal access tokens ← Fine-grained tokens ← Generate new token ← Repository access: Only select repositories ← `42-content` ← Permissions: Contents = Read and write ← Expiration: Custom, שנה קדימה. מדביקים את הטוקן בפאנל, בלוק **"חיבור GitHub"**, ולוחצים "שמירה ובדיקה". הבלוק מציג את תאריך התפוגה בכל כניסה לפאנל, ומזהיר שבועיים לפני.
+
 **חיבור מאפס (פרויקט חדש):** גיליון ← Extensions ← Apps Script ← הדבקת `leads.gs` ← עדכון `SHEET_ID` ← Deploy ← New deployment ← Web app (Execute as: Me, Who has access: Anyone) ← הכתובת אל `leadWebhook` ב-`data/site.json` ואל `API` ב-`admin/index.html`.
 
 ## פיקסלים ומדידה (טאבולה / אאוטבריין / מטא / GA4)

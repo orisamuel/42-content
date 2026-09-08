@@ -80,6 +80,12 @@ function doPost(e) {
         return uploadImage(req, props);
       case 'generateImage':
         return generateImageAction(req, props);
+      case 'checkGitHub': {
+        var chk = ghCheckToken(props.getProperty('GH_TOKEN'));
+        return jsonResponse({ success: true, ok: chk.ok, message: chk.message, expires: chk.expires || '' });
+      }
+      case 'saveGitHubToken':
+        return saveGitHubToken(req, props);
       case 'getLeadSettings':
         return getLeadSettings(props);
       case 'saveLeadSettings':
@@ -99,6 +105,8 @@ function doPost(e) {
 }
 
 /* ---------- עזרי GitHub ---------- */
+var GH_LAST_ERROR = ''; // השגיאה האחרונה מ-GitHub, כדי שהודעות הכישלון בפאנל יגידו מה באמת קרה
+
 function ghHeaders(token) {
   return {
     'Authorization': 'Bearer ' + token,
@@ -107,26 +115,98 @@ function ghHeaders(token) {
   };
 }
 
+/** רושם שגיאה קריאה מ-GitHub עם רמז לפי קוד התגובה, ומחזיר אותה */
+function ghNoteError(res, what) {
+  var code = res.getResponseCode();
+  var msg = '';
+  try { msg = JSON.parse(res.getContentText()).message || ''; } catch (e) { msg = ''; }
+  var hint = code === 401 ? 'הטוקן של GitHub פקע או בוטל - הדביקו טוקן חדש בפאנל, בלוק "חיבור GitHub"'
+    : code === 403 ? 'לטוקן אין הרשאת כתיבה לריפו (צריך Contents: Read and write) או שנגמרה מכסת הבקשות'
+    : code === 404 ? 'הריפו או הקובץ לא נמצאו, או שהטוקן לא מורשה לריפו הזה'
+    : code === 409 ? 'התנגשות עם קומיט אחר באותו רגע - נסו שוב'
+    : code === 422 ? 'GitHub דחה את הבקשה (קובץ קיים או תוכן לא תקין)'
+    : code >= 500 ? 'תקלה זמנית ב-GitHub - נסו שוב בעוד דקה' : '';
+  GH_LAST_ERROR = what + ': GitHub ' + code + (msg ? ' (' + msg + ')' : '') + (hint ? ' - ' + hint : '');
+  return GH_LAST_ERROR;
+}
+
+/** תוספת להודעת כישלון: פירוט השגיאה האחרונה מ-GitHub, אם יש */
+function ghDetail() {
+  return GH_LAST_ERROR ? ' [' + GH_LAST_ERROR + ']' : '';
+}
+
 function ghGetFile(token, path) {
   var res = UrlFetchApp.fetch('https://api.github.com/repos/' + REPO + '/contents/' + path, {
     headers: ghHeaders(token),
     muteHttpExceptions: true
   });
-  if (res.getResponseCode() !== 200) return null;
+  if (res.getResponseCode() !== 200) { ghNoteError(res, 'קריאת ' + path); return null; }
   return JSON.parse(res.getContentText());
 }
 
 function ghPutFile(token, path, base64Content, message, sha) {
   var payload = { message: message, content: base64Content };
   if (sha) payload.sha = sha;
-  var res = UrlFetchApp.fetch('https://api.github.com/repos/' + REPO + '/contents/' + path, {
+  var url = 'https://api.github.com/repos/' + REPO + '/contents/' + path;
+  var opts = {
     method: 'put',
     contentType: 'application/json',
     headers: ghHeaders(token),
     payload: JSON.stringify(payload),
     muteHttpExceptions: true
-  });
-  return res.getResponseCode() < 300;
+  };
+  var res = UrlFetchApp.fetch(url, opts);
+  var code = res.getResponseCode();
+  if (code === 409 || code >= 500) { // התנגשות עם קומיט מקביל (למשל של ה-RSS) או תקלה זמנית - ניסיון נוסף
+    Utilities.sleep(1500);
+    res = UrlFetchApp.fetch(url, opts);
+    code = res.getResponseCode();
+  }
+  if (code >= 300) { ghNoteError(res, 'כתיבת ' + path); return false; }
+  GH_LAST_ERROR = '';
+  return true;
+}
+
+/** בדיקת הטוקן מול GitHub: חיבור לריפו + תאריך התפוגה (כותרת github-authentication-token-expiration) */
+function ghCheckToken(token) {
+  if (!token) return { ok: false, message: 'לא מוגדר טוקן GitHub - הדביקו טוקן בפאנל, בלוק "חיבור GitHub"' };
+  var res = UrlFetchApp.fetch('https://api.github.com/repos/' + REPO, { headers: ghHeaders(token), muteHttpExceptions: true });
+  if (res.getResponseCode() !== 200) return { ok: false, message: ghNoteError(res, 'בדיקת הטוקן') };
+  var expires = '';
+  var headers = res.getAllHeaders();
+  for (var k in headers) {
+    if (String(k).toLowerCase() === 'github-authentication-token-expiration') expires = String(headers[k]);
+  }
+  var expNote = '';
+  if (expires) {
+    var d = new Date(expires.replace(' UTC', 'Z').replace(' ', 'T'));
+    if (!isNaN(d)) {
+      var days = Math.round((d.getTime() - new Date().getTime()) / 86400000);
+      expNote = ' תוקף הטוקן עד ' + Utilities.formatDate(d, 'Asia/Jerusalem', 'dd/MM/yyyy') +
+        (days <= 14 ? ' (עוד ' + days + ' ימים - כדאי לחדש!)' : ' (עוד ' + days + ' ימים)');
+    } else {
+      expNote = ' תוקף הטוקן: ' + expires;
+    }
+  } else {
+    expNote = ' לטוקן אין תאריך תפוגה.';
+  }
+  return { ok: true, expires: expires, message: 'מחובר לריפו ' + REPO + '.' + expNote };
+}
+
+/** שמירת טוקן GitHub חדש מהפאנל - רק אחרי שנבדק שהוא עובד וקורא את קובץ הכתבות */
+function saveGitHubToken(req, props) {
+  var token = String((req && req.token) || '').trim();
+  if (!/^(github_pat_|ghp_|gho_|ghs_)[A-Za-z0-9_]{20,}$/.test(token)) {
+    return jsonResponse({ success: false, message: 'זה לא נראה כמו טוקן של GitHub (צריך להתחיל ב-github_pat_ או ghp_)' });
+  }
+  var check = ghCheckToken(token);
+  if (!check.ok) return jsonResponse({ success: false, message: 'הטוקן לא עבד. ' + check.message });
+  if (!ghGetFile(token, ARTICLES_PATH)) {
+    return jsonResponse({ success: false, message: 'הטוקן מתחבר, אבל לא קורא את ' + ARTICLES_PATH + ' - בדקו שנבחר הריפו הנכון עם Contents' + ghDetail() });
+  }
+  props.setProperty('GH_TOKEN', token);
+  clearRoutingCache();
+  return jsonResponse({ success: true, message: 'הטוקן נשמר ועובד. ' + check.message, expires: check.expires });
 }
 
 function readJsonFile(token, path) {
@@ -156,7 +236,7 @@ function requireToken(props) {
 function getArticles(props) {
   var token = requireToken(props);
   var manual = readJsonFile(token, ARTICLES_PATH);
-  if (!manual) return jsonResponse({ success: false, message: 'קריאת הכתבות נכשלה' });
+  if (!manual) return jsonResponse({ success: false, message: 'קריאת הכתבות נכשלה' + ghDetail() });
   var rss = readJsonFile(token, RSS_PATH) || { articles: [] };
 
   var pick = function (type) {
@@ -204,7 +284,7 @@ function saveArticle(req, props, isUpdate) {
   }
 
   var manual = readJsonFile(token, ARTICLES_PATH);
-  if (!manual) return jsonResponse({ success: false, message: 'קריאת הכתבות מגיטהאב נכשלה' });
+  if (!manual) return jsonResponse({ success: false, message: 'קריאת הכתבות מגיטהאב נכשלה' + ghDetail() });
   var rss = readJsonFile(token, RSS_PATH) || { articles: [], path: RSS_PATH, sha: null };
 
   var manualIdx = findIndexById(manual.articles, article.id);
@@ -219,7 +299,7 @@ function saveArticle(req, props, isUpdate) {
     article.updatedAt = new Date().toISOString();
     target.articles[idx] = article;
     if (!writeJsonFile(token, target, 'עדכון כתבה: ' + article.title)) {
-      return jsonResponse({ success: false, message: 'השמירה לגיטהאב נכשלה' });
+      return jsonResponse({ success: false, message: 'השמירה לגיטהאב נכשלה' + ghDetail() });
     }
   } else {
     if (manualIdx !== -1 || rssIdx !== -1) {
@@ -227,7 +307,7 @@ function saveArticle(req, props, isUpdate) {
     }
     manual.articles.unshift(article);
     if (!writeJsonFile(token, manual, 'כתבה חדשה: ' + article.title)) {
-      return jsonResponse({ success: false, message: 'השמירה לגיטהאב נכשלה' });
+      return jsonResponse({ success: false, message: 'השמירה לגיטהאב נכשלה' + ghDetail() });
     }
   }
 
@@ -245,14 +325,14 @@ function promoteArticle(req, props) {
   if (!req.id) return jsonResponse({ success: false, message: 'חסר מזהה כתבה' });
 
   var rss = readJsonFile(token, RSS_PATH);
-  if (!rss) return jsonResponse({ success: false, message: 'קריאת כתבות ה-RSS נכשלה' });
+  if (!rss) return jsonResponse({ success: false, message: 'קריאת כתבות ה-RSS נכשלה' + ghDetail() });
   var rssIdx = findIndexById(rss.articles, req.id);
   if (rssIdx === -1) {
     return jsonResponse({ success: false, message: 'הכתבה אינה כתבת RSS (אולי היא כבר קבועה?)' });
   }
 
   var manual = readJsonFile(token, ARTICLES_PATH);
-  if (!manual) return jsonResponse({ success: false, message: 'קריאת הכתבות הקבועות נכשלה' });
+  if (!manual) return jsonResponse({ success: false, message: 'קריאת הכתבות הקבועות נכשלה' + ghDetail() });
 
   var article = rss.articles[rssIdx];
 
@@ -294,7 +374,7 @@ function promoteArticle(req, props) {
   /* 1. מוסיפים לכתבות הקבועות */
   manual.articles.unshift(promoted);
   if (!writeJsonFile(token, manual, 'כתבה קבועה: ' + promoted.title)) {
-    return jsonResponse({ success: false, message: 'השמירה לכתבות הקבועות נכשלה' });
+    return jsonResponse({ success: false, message: 'השמירה לכתבות הקבועות נכשלה' + ghDetail() });
   }
 
   /* 2. מסירים מכתבות ה-RSS (קוראים מחדש - ה-sha התיישן) */
@@ -323,7 +403,7 @@ function uploadImage(req, props) {
   var ext = String(req.mimeType || '').indexOf('png') > -1 ? 'png' : 'jpg';
   var name = 'up-' + new Date().getTime() + '.' + ext;
   var ok = ghPutFile(token, 'assets/uploads/' + name, req.dataBase64, 'העלאת תמונה: ' + name);
-  if (!ok) return jsonResponse({ success: false, message: 'העלאת התמונה לגיטהאב נכשלה' });
+  if (!ok) return jsonResponse({ success: false, message: 'העלאת התמונה לגיטהאב נכשלה' + ghDetail() });
   return jsonResponse({ success: true, url: SITE_BASE + '/assets/uploads/' + name });
 }
 
@@ -349,7 +429,7 @@ function generateImageAction(req, props) {
 
   var name = 'gen-' + new Date().getTime() + '.jpg';
   var ok = ghPutFile(token, 'assets/uploads/' + name, b64, 'תמונת AI: ' + subject);
-  if (!ok) return jsonResponse({ success: false, message: 'שמירת התמונה לגיטהאב נכשלה' });
+  if (!ok) return jsonResponse({ success: false, message: 'שמירת התמונה לגיטהאב נכשלה' + ghDetail() });
 
   return jsonResponse({
     success: true,

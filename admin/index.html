@@ -253,6 +253,17 @@
       </div>
     </div>
   </section>
+
+  <section class="panel" id="githubPanel">
+    <h2>חיבור GitHub</h2>
+    <div id="gh-status" style="font-size:14px; font-weight:600">בודק חיבור...</div>
+    <div class="hint" style="margin-top:6px">הפאנל שומר כתבות ותמונות לריפו דרך טוקן של GitHub. כשהטוקן פוקע, פרסום והעלאת תמונות נכשלים. טוקן חדש: GitHub ← Settings ← Developer settings ← Personal access tokens ← Fine-grained tokens ← Generate new token ← Repository access: Only select repositories ← 42-content ← Permissions: Contents = Read and write ← Expiration: Custom, שנה קדימה. מדביקים כאן ולוחצים "שמירה ובדיקה".</div>
+    <div class="actions" style="margin-top:10px">
+      <input type="password" id="gh-token" placeholder="github_pat_..." style="flex:1; min-width:240px; width:auto" autocomplete="off">
+      <button class="btn btn-primary btn-sm" id="btn-save-token">שמירה ובדיקה</button>
+      <button class="btn btn-ghost btn-sm" id="btn-check-github">בדיקת חיבור</button>
+    </div>
+  </section>
 </div>
 
 <script>
@@ -299,6 +310,7 @@
     $('lock').style.display = 'none';
     $('app').style.display = 'grid';
     $('btn-logout').style.display = 'block';
+    checkGitHub();
   }
 
   function lockScreen() {
@@ -770,6 +782,38 @@
       if (res.sheetUrl) $('link-sheet').href = res.sheetUrl;
       fillTabs(res.tabs);
       showStatus('מוצגים ' + res.rows.length + ' לידים אחרונים מתוך ' + res.total + ' בטאב "' + (res.tab || 'לידים') + '". עריכת סטטוס והערות - בגיליון עצמו.', true);
+    }).catch(function (err) {
+      if (err.message !== 'no-password') showStatus('שגיאה: ' + err.message, false);
+    }).finally(done);
+  });
+
+  /* ---------- חיבור GitHub ---------- */
+  function renderGh(res) {
+    var el = $('gh-status');
+    el.textContent = (res.ok ? '✅ ' : '❌ ') + (res.message || (res.ok ? 'מחובר' : 'אין חיבור'));
+    el.style.color = res.ok ? '#0e7c5a' : '#c22733';
+  }
+
+  function checkGitHub() {
+    api('checkGitHub').then(renderGh).catch(function (err) {
+      if (err.message !== 'no-password') $('gh-status').textContent = 'לא ניתן לבדוק את החיבור: ' + err.message;
+    });
+  }
+
+  $('btn-check-github').addEventListener('click', function () {
+    var done = busy(this, 'בודק...');
+    api('checkGitHub').then(renderGh).catch(function () {}).finally(done);
+  });
+
+  $('btn-save-token').addEventListener('click', function () {
+    var token = $('gh-token').value.trim();
+    if (!token) { showStatus('הדביקו טוקן קודם.', false); return; }
+    var done = busy(this, 'בודק ושומר...');
+    api('saveGitHubToken', { token: token }).then(function (res) {
+      if (!res.success) throw new Error(res.message);
+      $('gh-token').value = '';
+      showStatus(res.message, true);
+      checkGitHub();
     }).catch(function (err) {
       if (err.message !== 'no-password') showStatus('שגיאה: ' + err.message, false);
     }).finally(done);
