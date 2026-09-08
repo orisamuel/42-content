@@ -26,10 +26,11 @@ var HEADERS = [
   'תאריך', 'שעה', 'שם מלא', 'טלפון', 'דוא"ל', 'עיר',
   'כתבה', 'קמפיין', 'עמוד',
   'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term',
-  'סטטוס', 'הערות', 'מזהה ליד', 'מזהה קליק', 'כתובת מלאה', 'דגלים', 'העברה'
+  'סטטוס', 'הערות', 'מזהה ליד', 'מזהה קליק', 'כתובת מלאה', 'דגלים', 'העברה', 'יעד'
 ];
 var STATUSES = ['חדש', 'בטיפול', 'נקבעה פגישה', 'נסגר', 'לא רלוונטי', 'כפול'];
 var SHEET_URL = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID;
+var ROUTING_CACHE_KEY = 'lead-routing-v1';
 
 /* ---------- GET: לידים מהאתר (ללא סיסמה) ---------- */
 function doGet(e) {
@@ -230,6 +231,7 @@ function saveArticle(req, props, isUpdate) {
     }
   }
 
+  clearRoutingCache();
   return jsonResponse({
     success: true,
     message: isUpdate ? 'הכתבה עודכנה' : 'הכתבה פורסמה',
@@ -305,6 +307,7 @@ function promoteArticle(req, props) {
     }
   }
 
+  clearRoutingCache();
   return jsonResponse({
     success: true,
     message: 'הכתבה הפכה לקבועה',
@@ -488,15 +491,25 @@ function addLead(p) {
     'העברה': ''
   };
 
-  /* כתיבה לגיליון תחת נעילה - כמה לידים באותה שנייה לא דורסים זה את זה */
+  /* ניתוב לפי כתבה: טאב משלה + מייל + webhooks (מוגדר בפאנל בתוך הכתבה, נקרא מ-data/articles.json) */
+  var routing = getLeadRouting(str(p.article));
+  row['יעד'] = routing.tab;
+
+  /* כתיבה לגיליון תחת נעילה - כמה לידים באותה שנייה לא דורסים זה את זה.
+     כל ליד נרשם בטאב הראשי (תמונה מלאה לסוכנות) וגם בטאב של הכתבה (ללקוח) */
   var lock = LockService.getScriptLock();
   var locked = lock.tryLock(15000);
-  var sheet, headers, rowIndex;
+  var targets = [];
   try {
-    sheet = ensureSheet(SHEET_NAME);
-    headers = ensureHeaders(sheet);
-    sheet.appendRow(headers.map(function (h) { return row.hasOwnProperty(h) ? row[h] : ''; }));
-    rowIndex = sheet.getLastRow();
+    var ss = SpreadsheetApp.openById(SHEET_ID);
+    var tabs = [SHEET_NAME];
+    if (routing.tab && routing.tab !== SHEET_NAME) tabs.push(routing.tab);
+    for (var t = 0; t < tabs.length; t++) {
+      var sheet = ensureSheetIn(ss, tabs[t]);
+      var headers = ensureHeaders(sheet);
+      sheet.appendRow(headers.map(function (h) { return row.hasOwnProperty(h) ? row[h] : ''; }));
+      targets.push({ sheet: sheet, headers: headers, rowIndex: sheet.getLastRow() });
+    }
   } finally {
     if (locked) lock.releaseLock();
   }
@@ -504,15 +517,19 @@ function addLead(p) {
   cache.put('lead:' + leadId, '1', 3600);
   if (phone) cache.put('phone:' + phone, '1', 86400);
 
-  /* העברה ל-webhooks חיצוניים (CRM / Make / Zapier) והתראה במייל. כישלון שם לא מכשיל את הליד */
-  var forwarded = forwardLead(row, flags);
+  /* העברה ל-webhooks (כלליים + של הכתבה) והתראה במייל (כללי + של הכתבה). כישלון שם לא מכשיל את הליד */
+  var forwarded = forwardLead(row, flags, routing);
   if (forwarded) {
-    var col = headers.indexOf('העברה') + 1;
-    if (col > 0) sheet.getRange(rowIndex, col).setValue(forwarded);
+    for (var k = 0; k < targets.length; k++) {
+      var col = targets[k].headers.indexOf('העברה') + 1;
+      if (col > 0) targets[k].sheet.getRange(targets[k].rowIndex, col).setValue(forwarded);
+    }
   }
-  notifyLead(row, flags);
+  var notified = notifyLead(row, flags, routing);
 
-  return jsonResponse({ success: true, message: 'הליד נקלט', leadId: leadId });
+  var out = { success: true, message: 'הליד נקלט', leadId: leadId };
+  if (p.test) out.routing = { tab: routing.tab, emails: notified, forwarded: forwarded };
+  return jsonResponse(out);
 }
 
 function str(v) { return v == null ? '' : String(v).slice(0, 500); }
@@ -527,7 +544,11 @@ function normalizePhone(raw) {
 }
 
 function ensureSheet(name) {
-  var ss = SpreadsheetApp.openById(SHEET_ID);
+  return ensureSheetIn(SpreadsheetApp.openById(SHEET_ID), name);
+}
+
+/** מחזיר טאב בגיליון הנתון, ויוצר אותו (עם כותרות) אם אינו קיים */
+function ensureSheetIn(ss, name) {
   var sheet = ss.getSheetByName(name);
   if (!sheet) {
     sheet = ss.insertSheet(name);
@@ -583,6 +604,7 @@ function leadPayload(row, flags) {
     utm_content: row['utm_content'],
     utm_term: row['utm_term'],
     clickId: row['מזהה קליק'],
+    sheetTab: row['יעד'] || '',
     flags: flags,
     test: flags.indexOf('בדיקה') > -1
   };
@@ -594,8 +616,11 @@ function getForwardUrls() {
 }
 
 /** שולח את הליד לכל ה-webhooks במקביל ומחזיר סיכום קצר לעמודת "העברה" */
-function forwardLead(row, flags) {
+function forwardLead(row, flags, routing) {
   var urls = getForwardUrls();
+  if (routing && routing.webhooks) {
+    routing.webhooks.forEach(function (u) { if (urls.indexOf(u) === -1) urls.push(u); });
+  }
   if (!urls.length) return '';
   var body = JSON.stringify(leadPayload(row, flags));
   var requests = urls.map(function (u) {
@@ -620,9 +645,14 @@ function hostOf(url) {
 }
 
 /** התראה במייל על ליד חדש (אם הוגדר NOTIFY_EMAIL) עם קישורי חיוג ווואטסאפ */
-function notifyLead(row, flags) {
-  var to = PropertiesService.getScriptProperties().getProperty('NOTIFY_EMAIL') || '';
-  if (!to) return;
+function notifyLead(row, flags, routing) {
+  var recipients = splitList(PropertiesService.getScriptProperties().getProperty('NOTIFY_EMAIL'));
+  if (routing && routing.emails) {
+    routing.emails.forEach(function (e) { if (recipients.indexOf(e) === -1) recipients.push(e); });
+  }
+  recipients = recipients.filter(function (e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); });
+  if (!recipients.length) return 0;
+  var to = recipients.join(',');
   try {
     var phone = String(row['טלפון'] || '').replace(/^'/, '');
     var subject = (flags.indexOf('בדיקה') > -1 ? '[בדיקה] ' : '') +
@@ -631,7 +661,7 @@ function notifyLead(row, flags) {
       ['שם', row['שם מלא']], ['טלפון', phone], ['דוא"ל', row['דוא"ל']], ['עיר', row['עיר']],
       ['כתבה', row['כתבה']], ['קמפיין', row['קמפיין']],
       ['מקור', [row['utm_source'], row['utm_medium'], row['utm_campaign']].filter(String).join(' / ')],
-      ['זמן', row['תאריך'] + ' ' + row['שעה']], ['דגלים', row['דגלים']]
+      ['זמן', row['תאריך'] + ' ' + row['שעה']], ['דגלים', row['דגלים']], ['טאב בגיליון', row['יעד']]
     ].filter(function (l) { return l[1]; });
     var html = '<div dir="rtl" style="font-family:Arial,sans-serif;font-size:15px">' +
       '<h2 style="margin:0 0 12px">ליד חדש מ-Channel 18</h2>' +
@@ -644,6 +674,7 @@ function notifyLead(row, flags) {
       '<p style="color:#888;font-size:12px"><a href="' + SHEET_URL + '">לגיליון הלידים</a></p></div>';
     MailApp.sendEmail({ to: to, subject: subject, htmlBody: html, name: 'Channel 18 לידים' });
   } catch (err) { /* מייל שנפל לא מכשיל את הליד */ }
+  return recipients.length;
 }
 
 function escapeHtml(s) {
@@ -652,13 +683,78 @@ function escapeHtml(s) {
   });
 }
 
+/* ---------- ניתוב לידים לפי כתבה ---------- */
+/** שם טאב חוקי בגיליון: בלי [ ] * ? / \ : ועד 60 תווים */
+function sanitizeTabName(name) {
+  return String(name || '').replace(/[\[\]\*\?\/\\:]/g, '-').replace(/\s+/g, ' ').trim().slice(0, 60);
+}
+
+function splitList(v) {
+  return String(v || '').split(/[\s,;]+/).map(function (x) { return x.trim(); }).filter(Boolean);
+}
+
+/**
+ * מפת ניתוב לכל הכתבות: { articleId: { tab, emails[], webhooks[] } }.
+ * נקראת מ-data/articles.json (דרך GitHub API - תמיד הגרסה העדכנית; בלי טוקן - מ-raw) ונשמרת במטמון ל-10 דקות.
+ * הפאנל מנקה את המטמון בכל שמירת כתבה, כך שהגדרה חדשה תופסת מיד.
+ */
+function loadRoutingMap() {
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get(ROUTING_CACHE_KEY);
+  if (cached) {
+    try { return JSON.parse(cached); } catch (e) { /* נטען מחדש */ }
+  }
+  var map = {};
+  try {
+    var token = PropertiesService.getScriptProperties().getProperty('GH_TOKEN');
+    var articles = null;
+    if (token) {
+      var data = readJsonFile(token, ARTICLES_PATH);
+      if (data) articles = data.articles;
+    }
+    if (!articles) {
+      var res = UrlFetchApp.fetch('https://raw.githubusercontent.com/' + REPO + '/main/' + ARTICLES_PATH + '?t=' + new Date().getTime(), { muteHttpExceptions: true });
+      if (res.getResponseCode() === 200) articles = JSON.parse(res.getContentText());
+    }
+    (articles || []).forEach(function (a) {
+      if (!a || !a.id || !a.lead) return;
+      var L = a.lead;
+      map[a.id] = {
+        tab: sanitizeTabName(L.sheetTab || L.campaign || a.id) || SHEET_NAME,
+        emails: splitList(L.notifyEmail),
+        webhooks: splitList(L.webhooks).filter(function (u) { return /^https:\/\/\S+$/.test(u); })
+      };
+    });
+    cache.put(ROUTING_CACHE_KEY, JSON.stringify(map), 600);
+  } catch (err) { /* בלי ניתוב - הכול נרשם בטאב הראשי */ }
+  return map;
+}
+
+/** ניתוב לליד לפי הכתבה. כתבה לא מוכרת - רק הטאב הראשי (כדי שאף אחד לא ייצר טאבים דרך הטופס) */
+function getLeadRouting(articleId) {
+  var r = articleId ? loadRoutingMap()[articleId] : null;
+  if (!r) return { tab: SHEET_NAME, emails: [], webhooks: [] };
+  return { tab: r.tab || SHEET_NAME, emails: r.emails || [], webhooks: r.webhooks || [] };
+}
+
+function clearRoutingCache() {
+  try { CacheService.getScriptCache().remove(ROUTING_CACHE_KEY); } catch (e) { /* לא קריטי */ }
+}
+
 /* ---------- ניהול לידים מפאנל הניהול (עם סיסמה) ---------- */
+function listTabs() {
+  try {
+    return SpreadsheetApp.openById(SHEET_ID).getSheets().map(function (sh) { return sh.getName(); });
+  } catch (e) { return []; }
+}
+
 function getLeadSettings(props) {
   return jsonResponse({
     success: true,
     notifyEmail: props.getProperty('NOTIFY_EMAIL') || '',
     forwardWebhooks: getForwardUrls().join('\n'),
-    sheetUrl: SHEET_URL
+    sheetUrl: SHEET_URL,
+    tabs: listTabs()
   });
 }
 
@@ -678,15 +774,16 @@ function saveLeadSettings(req, props) {
   return jsonResponse({ success: true, message: 'הגדרות הלידים נשמרו' });
 }
 
-/** ליד בדיקה שעובר את כל השרשרת (גיליון, מייל, webhooks) ומסומן "בדיקה" */
+/** ליד בדיקה שעובר את כל השרשרת (טאבים, מייל, webhooks) ומסומן "בדיקה". עם article - לפי הניתוב של הכתבה */
 function testLead(req) {
+  clearRoutingCache(); // שהבדיקה תשתמש בהגדרות העדכניות של הכתבה
   var res = addLead({
     leadId: 'test-' + new Date().getTime(),
     fullname: 'ליד בדיקה',
     phone: '0501234567',
     email: 'test@example.com',
     city: 'תל אביב',
-    article: 'test',
+    article: (req && req.article) || 'test',
     campaign: (req && req.campaign) || 'test',
     page: SITE_BASE + '/',
     pageUrl: SITE_BASE + '/?utm_source=test',
@@ -696,25 +793,24 @@ function testLead(req) {
     test: true
   });
   var data = JSON.parse(res.getContent());
-  var sheet = ensureSheet(SHEET_NAME);
-  var headers = ensureHeaders(sheet);
-  var last = sheet.getRange(sheet.getLastRow(), 1, 1, headers.length).getValues()[0];
-  var col = headers.indexOf('העברה');
-  data.forwarded = col > -1 ? String(last[col] || '') : '';
   data.notifyEmail = PropertiesService.getScriptProperties().getProperty('NOTIFY_EMAIL') || '';
   data.sheetUrl = SHEET_URL;
   return jsonResponse(data);
 }
 
 function getRecentLeads(req) {
-  var sheet = ensureSheet(SHEET_NAME);
+  var tab = sanitizeTabName((req && req.tab) || '') || SHEET_NAME;
+  var sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName(tab);
+  if (!sheet) return jsonResponse({ success: false, message: 'אין טאב בשם "' + tab + '"' });
   var headers = ensureHeaders(sheet);
   var lastRow = sheet.getLastRow();
   var n = Math.min(Number((req && req.limit) || 20), 100);
-  if (lastRow < 2) return jsonResponse({ success: true, headers: headers, rows: [], total: 0, sheetUrl: SHEET_URL });
+  var base = { success: true, headers: headers, tab: tab, tabs: listTabs(), sheetUrl: SHEET_URL };
+  if (lastRow < 2) { base.rows = []; base.total = 0; return jsonResponse(base); }
   var start = Math.max(2, lastRow - n + 1);
-  var values = sheet.getRange(start, 1, lastRow - start + 1, headers.length).getDisplayValues();
-  return jsonResponse({ success: true, headers: headers, rows: values.reverse(), total: lastRow - 1, sheetUrl: SHEET_URL });
+  base.rows = sheet.getRange(start, 1, lastRow - start + 1, headers.length).getDisplayValues().reverse();
+  base.total = lastRow - 1;
+  return jsonResponse(base);
 }
 
 /* ---------- עזרים ---------- */

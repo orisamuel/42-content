@@ -196,6 +196,27 @@
       <label class="check"><input type="checkbox" class="l-field" value="city|עיר מגורים|text"> עיר</label>
       <label>הודעת תודה לאחר שליחה</label>
       <input type="text" id="l-success" value="תודה! הפרטים נקלטו בהצלחה, ניצור איתכם קשר בהקדם.">
+
+      <div style="margin-top:14px; padding:12px 14px; background:#fff; border:1px solid var(--line); border-radius:10px">
+        <div style="font-weight:800; font-size:14px; margin-bottom:4px">לאן הולכים הלידים של הכתבה הזו</div>
+        <div class="hint">כל ליד נרשם בטאב הראשי "לידים" וגם בטאב של הכתבה. מייל ו-webhooks שמוגדרים כאן מתווספים ליעדים הכלליים (בלוק "לידים" למטה).</div>
+        <div class="row">
+          <div>
+            <label>שם הטאב בגיליון</label>
+            <input type="text" id="l-sheet-tab" placeholder="ברירת מחדל: מזהה הקמפיין">
+          </div>
+          <div>
+            <label>מייל התראה לכתבה זו</label>
+            <input type="text" id="l-email" placeholder="client@example.co.il (אפשר כמה, מופרדים בפסיק)">
+          </div>
+        </div>
+        <label>Webhooks לכתבה זו (כתובת בכל שורה)</label>
+        <textarea id="l-webhooks" style="min-height:70px" placeholder="https://hook.eu1.make.com/..."></textarea>
+        <div class="actions" style="margin-top:10px">
+          <button class="btn btn-ghost btn-sm" id="btn-test-article-lead" style="display:none">🧪 ליד בדיקה לכתבה זו</button>
+          <span class="hint" id="l-test-hint" style="display:none">שולח ליד מסומן "בדיקה" ליעדים של הכתבה כפי שנשמרו (שמרו קודם אם שיניתם).</span>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -213,6 +234,7 @@
     <h2>לידים</h2>
     <div class="actions">
       <a class="btn btn-ghost btn-sm" id="link-sheet" href="https://docs.google.com/spreadsheets/d/1Vw1TM5Jg_WiQTxBFJCvveNm_Bn5pcgYLcu28egueMXY" target="_blank" rel="noopener">📊 פתיחת גיליון הלידים</a>
+      <select id="leads-tab" style="min-width:170px; width:auto"><option value="">טאב ראשי: לידים (הכול)</option></select>
       <button class="btn btn-ghost btn-sm" id="btn-leads">הצגת לידים אחרונים</button>
       <button class="btn btn-ghost btn-sm" id="btn-lead-settings">⚙️ התראות ו-webhooks</button>
     </div>
@@ -403,6 +425,9 @@
         $('l-button').value = a.lead.buttonText || 'שלחו לי פרטים';
         $('l-campaign').value = a.lead.campaign || '';
         $('l-success').value = a.lead.successMessage || '';
+        $('l-sheet-tab').value = a.lead.sheetTab || '';
+        $('l-email').value = a.lead.notifyEmail || '';
+        $('l-webhooks').value = a.lead.webhooks || '';
         document.querySelectorAll('.l-field').forEach(function (cb) {
           var name = cb.value.split('|')[0];
           cb.checked = a.lead.fields.some(function (f) { return f.name === name; });
@@ -415,6 +440,8 @@
       editingType = res.type || 'manual';
       $('edit-type').textContent = editingType === 'rss' ? ' (כתבת RSS - מתחלפת בסבב היומי)' : '';
       $('btn-promote').style.display = editingType === 'rss' ? 'inline-block' : 'none';
+      $('btn-test-article-lead').style.display = 'inline-block';
+      $('l-test-hint').style.display = 'inline';
       $('editBar').className = 'on';
       $('btn-publish').textContent = 'שמירת השינויים';
       showStatus(editingType === 'rss'
@@ -432,6 +459,8 @@
     editingType = 'manual';
     $('editBar').className = '';
     $('btn-promote').style.display = 'none';
+    $('btn-test-article-lead').style.display = 'none';
+    $('l-test-hint').style.display = 'none';
     $('f-slug').disabled = false;
     $('btn-publish').textContent = 'פרסום הכתבה לאתר';
   }
@@ -595,7 +624,10 @@
         buttonText: $('l-button').value.trim() || 'שליחה',
         successMessage: $('l-success').value.trim(),
         campaign: $('l-campaign').value.trim() || slug,
-        fields: fields
+        fields: fields,
+        sheetTab: $('l-sheet-tab').value.trim(),
+        notifyEmail: $('l-email').value.trim(),
+        webhooks: $('l-webhooks').value.trim()
       };
     }
 
@@ -640,6 +672,35 @@
   });
 
   /* ---------- לידים ---------- */
+  function fillTabs(tabs) {
+    if (!tabs || !tabs.length) return;
+    var sel = $('leads-tab');
+    var current = sel.value;
+    sel.innerHTML = '<option value="">טאב ראשי: לידים (הכול)</option>';
+    tabs.forEach(function (t) {
+      if (t === 'לידים') return;
+      var o = document.createElement('option');
+      o.value = t; o.textContent = t;
+      sel.appendChild(o);
+    });
+    sel.value = current;
+  }
+
+  $('btn-test-article-lead').addEventListener('click', function () {
+    if (!editingId) { showStatus('קודם פתחו כתבה לעריכה - הניתוב נקרא מהכתבה השמורה.', false); return; }
+    var done = busy(this, 'שולח...');
+    api('testLead', { article: editingId, campaign: $('l-campaign').value.trim() || editingId }).then(function (res) {
+      if (!res.success) throw new Error(res.message);
+      var r = res.routing || {};
+      var msg = 'ליד הבדיקה נרשם בטאב "' + (r.tab || 'לידים') + '"' + (r.tab && r.tab !== 'לידים' ? ' וגם בטאב הראשי.' : '.');
+      msg += r.emails ? ' נשלח מייל ל-' + r.emails + ' נמענים.' : ' לא הוגדר מייל התראה.';
+      msg += r.forwarded ? ' Webhooks: ' + r.forwarded + '.' : ' אין webhooks.';
+      showStatus(msg, true, res.sheetUrl, 'פתיחת הגיליון');
+    }).catch(function (err) {
+      if (err.message !== 'no-password') showStatus('שגיאה: ' + err.message, false);
+    }).finally(done);
+  });
+
   $('btn-lead-settings').addEventListener('click', function () {
     var box = $('leadSettings');
     if (box.style.display === 'block') { box.style.display = 'none'; return; }
@@ -649,6 +710,7 @@
       $('ls-email').value = res.notifyEmail || '';
       $('ls-webhooks').value = res.forwardWebhooks || '';
       if (res.sheetUrl) $('link-sheet').href = res.sheetUrl;
+      fillTabs(res.tabs);
       box.style.display = 'block';
     }).catch(function (err) {
       if (err.message !== 'no-password') showStatus('שגיאה: ' + err.message, false);
@@ -681,9 +743,9 @@
 
   $('btn-leads').addEventListener('click', function () {
     var done = busy(this, 'טוען...');
-    api('getRecentLeads', { limit: 20 }).then(function (res) {
+    api('getRecentLeads', { limit: 20, tab: $('leads-tab').value }).then(function (res) {
       if (!res.success) throw new Error(res.message);
-      var show = ['תאריך', 'שעה', 'שם מלא', 'טלפון', 'עיר', 'כתבה', 'קמפיין', 'utm_source', 'סטטוס', 'דגלים', 'העברה'];
+      var show = ['תאריך', 'שעה', 'שם מלא', 'טלפון', 'עיר', 'כתבה', 'קמפיין', 'יעד', 'utm_source', 'סטטוס', 'דגלים', 'העברה'];
       var idx = show.map(function (h) { return res.headers.indexOf(h); });
       var table = document.createElement('table');
       table.className = 'leads-table';
@@ -706,7 +768,8 @@
         list.appendChild(table);
       }
       if (res.sheetUrl) $('link-sheet').href = res.sheetUrl;
-      showStatus('מוצגים ' + res.rows.length + ' לידים אחרונים מתוך ' + res.total + '. עריכת סטטוס והערות - בגיליון עצמו.', true);
+      fillTabs(res.tabs);
+      showStatus('מוצגים ' + res.rows.length + ' לידים אחרונים מתוך ' + res.total + ' בטאב "' + (res.tab || 'לידים') + '". עריכת סטטוס והערות - בגיליון עצמו.', true);
     }).catch(function (err) {
       if (err.message !== 'no-password') showStatus('שגיאה: ' + err.message, false);
     }).finally(done);
