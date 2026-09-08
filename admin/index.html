@@ -6,6 +6,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>ניהול | Channel 18</title>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root { --brand:#0f1b2d; --accent:#e63946; --line:#e6e8ec; --muted:#6b7280; }
   * { box-sizing:border-box; margin:0; padding:0; }
@@ -13,7 +14,8 @@
   header { background:var(--brand); color:#fff; padding:14px 24px; display:flex; align-items:center; gap:12px; }
   header .mark { display:grid; place-items:center; width:36px; height:36px; background:var(--accent); border-radius:9px; font-weight:900; }
   header h1 { font-size:18px; font-weight:700; }
-  .wrap { max-width:860px; margin:24px auto; padding:0 16px; display:grid; gap:18px; }
+  #who { font-size:13px; color:rgba(255,255,255,.75); margin-inline-start:auto; }
+  .wrap { max-width:960px; margin:24px auto; padding:0 16px; display:grid; gap:18px; }
   .panel { background:#fff; border-radius:14px; padding:22px; box-shadow:0 2px 10px rgba(16,20,24,.06); }
   .panel h2 { font-size:17px; font-weight:800; margin-bottom:14px; padding-bottom:8px; border-bottom:2px solid var(--line); }
   label { display:block; font-size:13.5px; font-weight:600; margin:12px 0 4px; color:#3d4550; }
@@ -35,6 +37,7 @@
   .btn-ghost:hover { background:#e2e5ea; }
   .btn-sm { padding:9px 14px; font-size:13.5px; }
   .btn:disabled { opacity:.55; cursor:wait; }
+  a.btn { text-decoration:none; }
   .actions { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
   #status { padding:12px 16px; border-radius:10px; font-weight:600; display:none; font-size:14.5px; position:sticky; top:8px; z-index:10; }
   #status.ok { display:block; background:#e7f8f0; color:#0e7c5a; border:1px solid #b5e8d3; }
@@ -51,27 +54,23 @@
   #preview .body p { margin-bottom:12px; }
   #preview .body h2 { font-size:18px; margin:14px 0 6px; }
 
-  /* ---- מסך נעילה ---- */
-  #app { display:none; }
-  #lock {
-    min-height: calc(100vh - 64px);
-    display:flex; align-items:center; justify-content:center; padding:20px;
-  }
-  .lock-card {
-    background:#fff; border-radius:16px; padding:36px 32px; width:100%; max-width:400px;
-    box-shadow:0 10px 40px rgba(16,20,24,.12); text-align:center;
-  }
-  .lock-card .mark { display:grid; place-items:center; width:56px; height:56px; background:var(--accent);
-    color:#fff; border-radius:14px; font-weight:900; font-size:24px; margin:0 auto 16px; }
-  .lock-card h2 { font-size:20px; font-weight:800; margin-bottom:6px; }
-  .lock-card p { font-size:14px; color:var(--muted); margin-bottom:18px; }
-  .lock-card input { text-align:center; font-size:17px; letter-spacing:2px; }
-  .lock-card button { width:100%; margin-top:12px; }
-  .lock-err { display:none; color:#c22733; font-size:13.5px; font-weight:600; margin-top:10px; }
-  #btn-logout { background:none; border:0; color:rgba(255,255,255,.7); font-family:inherit;
-    font-size:13px; cursor:pointer; margin-inline-start:auto; display:none; }
-  #btn-logout:hover { color:#fff; text-decoration:underline; }
-  a.btn { text-decoration:none; }
+  /* ---- טבלאות ---- */
+  .tbl { width:100%; border-collapse:collapse; font-size:13px; margin-top:10px; display:block; overflow-x:auto; }
+  .tbl th, .tbl td { padding:7px 8px; border-bottom:1px solid var(--line); text-align:start; vertical-align:top; white-space:nowrap; }
+  .tbl th { background:#f7f8fa; font-weight:700; position:sticky; top:0; }
+  .tbl td.wrap-cell { white-space:normal; min-width:220px; }
+  .tbl tr:hover td { background:#fbfbfc; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11.5px; font-weight:700; background:#eef0f3; color:#3d4550; }
+  .badge.rss { background:#e7f0ff; color:#1d4ed8; }
+  .badge.ai { background:#f3e8ff; color:#7e22ce; }
+  .badge.manual { background:#e7f8f0; color:#0e7c5a; }
+  .badge.promoted { background:#fff4e5; color:#b45309; }
+  .muted { color:var(--muted); }
+  .link-btn { background:none; border:0; color:#1d4ed8; cursor:pointer; font-family:inherit; font-size:13px; text-decoration:underline; padding:0 2px; }
+  .link-btn.danger { color:#c22733; }
+  .leads-table td.status-new { color:#0e7c5a; font-weight:700; }
+
+  /* ---- שדות טופס ---- */
   .lf-row { display:grid; grid-template-columns:22px minmax(140px,1.4fr) 130px minmax(120px,1fr) auto 28px; gap:8px; align-items:center; margin:6px 0; }
   .lf-row input[type=text], .lf-row select { padding:8px 10px; font-size:14px; }
   .lf-row .lf-on { width:17px; height:17px; accent-color:var(--accent); }
@@ -79,18 +78,39 @@
   .lf-row .lf-req input { width:16px; height:16px; accent-color:var(--accent); }
   .lf-row .lf-del { background:none; border:0; cursor:pointer; color:#c22733; font-size:16px; }
   .lf-row .lf-del:disabled { visibility:hidden; }
-  @media (max-width:640px){ .lf-row { grid-template-columns:22px 1fr 1fr; } .lf-row .lf-options { grid-column:2 / -1; } }
-  .leads-table { width:100%; border-collapse:collapse; font-size:13px; margin-top:12px; display:block; overflow-x:auto; }
-  .leads-table th, .leads-table td { padding:6px 8px; border-bottom:1px solid var(--line); text-align:start; white-space:nowrap; }
-  .leads-table th { background:#f7f8fa; font-weight:700; }
-  .leads-table td.status-new { color:#0e7c5a; font-weight:700; }
-  @media (max-width:640px){ .row { grid-template-columns:1fr; } }
+
+  /* ---- לקוחות ---- */
+  .client-card { border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-top:12px; background:#fbfbfc; }
+  .client-head { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  .client-head b { font-size:16px; }
+  .client-meta { font-size:12.5px; color:var(--muted); width:100%; }
+
+  /* ---- מסך נעילה ---- */
+  #app { display:none; }
+  #lock { min-height:calc(100vh - 64px); display:flex; align-items:center; justify-content:center; padding:20px; }
+  .lock-card { background:#fff; border-radius:16px; padding:36px 32px; width:100%; max-width:420px;
+    box-shadow:0 10px 40px rgba(16,20,24,.12); text-align:center; }
+  .lock-card .mark { display:grid; place-items:center; width:56px; height:56px; background:var(--accent);
+    color:#fff; border-radius:14px; font-weight:900; font-size:24px; margin:0 auto 16px; }
+  .lock-card h2 { font-size:20px; font-weight:800; margin-bottom:6px; }
+  .lock-card p { font-size:14px; color:var(--muted); margin-bottom:18px; }
+  .lock-card input { text-align:center; font-size:17px; letter-spacing:2px; }
+  .lock-card #pass-box button { width:100%; margin-top:12px; }
+  .lock-err { display:none; color:#c22733; font-size:13.5px; font-weight:600; margin-top:12px; white-space:pre-wrap; }
+  #btn-logout { background:none; border:0; color:rgba(255,255,255,.7); font-family:inherit;
+    font-size:13px; cursor:pointer; display:none; }
+  #btn-logout:hover { color:#fff; text-decoration:underline; }
+  @media (max-width:640px){
+    .row { grid-template-columns:1fr; }
+    .lf-row { grid-template-columns:22px 1fr 1fr; } .lf-row .lf-options { grid-column:2 / -1; }
+  }
 </style>
 </head>
 <body>
 <header>
   <span class="mark">18</span>
   <h1>ניהול - Channel 18</h1>
+  <span id="who"></span>
   <button id="btn-logout">התנתקות 🔒</button>
 </header>
 
@@ -98,24 +118,28 @@
   <div class="lock-card">
     <div class="mark">18</div>
     <h2>אזור ניהול</h2>
-    <p>הזינו את סיסמת הניהול כדי להמשיך</p>
-    <input type="password" id="lock-pass" placeholder="••••••••" autocomplete="current-password">
-    <button class="btn btn-primary" id="btn-unlock">כניסה</button>
+    <p id="gsi-hint">טוען...</p>
+    <div id="gsi-btn" style="display:flex; justify-content:center; min-height:44px"></div>
     <div class="lock-err" id="lock-err"></div>
+    <a href="#" id="pass-toggle" style="display:block; margin-top:16px; font-size:12.5px; color:var(--muted)">כניסה עם סיסמת גיבוי</a>
+    <div id="pass-box" style="display:none; margin-top:10px">
+      <input type="password" id="lock-pass" placeholder="••••••••" autocomplete="current-password">
+      <button class="btn btn-primary" id="btn-unlock">כניסה</button>
+    </div>
   </div>
 </div>
 
 <div class="wrap" id="app">
   <div id="status"></div>
 
-  <section class="panel">
-    <h2>עריכת כתבה קיימת</h2>
+  <section class="panel" id="articlesPanel">
+    <h2>כתבות</h2>
     <div class="actions">
-      <button class="btn btn-ghost btn-sm" id="btn-list">טעינת רשימת הכתבות</button>
-      <select id="edit-picker" style="flex:1; min-width:200px; display:none"></select>
-      <button class="btn btn-ghost btn-sm" id="btn-load" style="display:none">פתח לעריכה</button>
+      <input type="text" id="art-search" placeholder="חיפוש בכותרות..." style="flex:1; min-width:200px; width:auto">
+      <button class="btn btn-ghost btn-sm" id="btn-list">רענון הרשימה</button>
+      <button class="btn btn-primary btn-sm" id="btn-new-article">+ כתבה חדשה</button>
     </div>
-    <div class="hint">אפשר לערוך כל כתבה - גם ידניות וגם כתבות ה-RSS האוטומטיות (מסומנות · RSS). שימו לב: כתבת RSS מתחלפת בסבב היומי כשנכנסות חדשות ממנה.</div>
+    <div id="articlesList" class="hint" style="margin-top:10px">טוען כתבות...</div>
   </section>
 
   <div id="editBar">
@@ -126,7 +150,7 @@
     </span>
   </div>
 
-  <section class="panel">
+  <section class="panel" id="editorPanel">
     <h2>יצירת תוכן עם AI</h2>
     <label>על מה הכתבה? (נושא + הנחיות חופשיות)</label>
     <input type="text" id="ai-topic" placeholder="למשל: 7 טעויות נפוצות בביטוח רכב וכיצד להימנע מהן">
@@ -192,38 +216,37 @@
           <input type="text" id="l-button" value="שלחו לי פרטים">
         </div>
         <div>
-          <label>מזהה קמפיין</label>
-          <input type="text" id="l-campaign" placeholder="למשל: solar-2026">
-          <div class="hint">יופיע בגיליון הלידים לזיהוי מקור הפנייה</div>
+          <label>הודעת תודה לאחר שליחה</label>
+          <input type="text" id="l-success" value="תודה! הפרטים נקלטו בהצלחה, ניצור איתכם קשר בהקדם.">
         </div>
       </div>
+
+      <div style="margin-top:14px; padding:12px 14px; background:#fff; border:1px solid var(--line); border-radius:10px">
+        <div style="font-weight:800; font-size:14px; margin-bottom:4px">לאן הולכים הלידים</div>
+        <div class="hint">בוחרים לקוח ואז קמפיין. הלידים נכנסים לטאב של הקמפיין בגיליון של הלקוח (וגם לטאב הראשי של הסוכנות). שתי כתבות של אותו קמפיין שופכות לאותו טאב.</div>
+        <div class="row">
+          <div>
+            <label>לקוח</label>
+            <select id="l-client"><option value="">- בלי לקוח (רק הטאב הראשי) -</option></select>
+          </div>
+          <div>
+            <label>קמפיין</label>
+            <div class="actions" style="gap:6px; flex-wrap:nowrap">
+              <select id="l-campaign" style="flex:1"><option value="">- בחרו לקוח קודם -</option></select>
+              <button type="button" class="btn btn-ghost btn-sm" id="btn-new-campaign" title="קמפיין חדש ללקוח הנבחר">+ קמפיין</button>
+            </div>
+          </div>
+        </div>
+        <div class="actions" style="margin-top:10px">
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-test-article-lead" style="display:none">🧪 ליד בדיקה לכתבה זו</button>
+          <span class="hint" id="l-test-hint" style="display:none">שולח ליד מסומן "בדיקה" לפי הניתוב השמור של הכתבה (שמרו קודם אם שיניתם).</span>
+        </div>
+      </div>
+
       <label>שדות בטופס</label>
       <div class="hint">הטקסט של כל שדה הוא מה שהגולש רואה בתוכו (placeholder) וגם שם העמודה בגיליון. אפשר לשנות אותו, לסמן חובה, ולהוסיף שדות משלכם, כולל בחירה מרשימה.</div>
       <div id="l-fields"></div>
       <button type="button" class="btn btn-ghost btn-sm" id="btn-add-field" style="margin-top:6px">+ הוספת שדה</button>
-      <label>הודעת תודה לאחר שליחה</label>
-      <input type="text" id="l-success" value="תודה! הפרטים נקלטו בהצלחה, ניצור איתכם קשר בהקדם.">
-
-      <div style="margin-top:14px; padding:12px 14px; background:#fff; border:1px solid var(--line); border-radius:10px">
-        <div style="font-weight:800; font-size:14px; margin-bottom:4px">לאן הולכים הלידים של הכתבה הזו</div>
-        <div class="hint">כל ליד נרשם בטאב הראשי "לידים" וגם בטאב של הכתבה. מייל ו-webhooks שמוגדרים כאן מתווספים ליעדים הכלליים (בלוק "לידים" למטה).</div>
-        <div class="row">
-          <div>
-            <label>שם הטאב בגיליון</label>
-            <input type="text" id="l-sheet-tab" placeholder="ברירת מחדל: מזהה הקמפיין">
-          </div>
-          <div>
-            <label>מייל התראה לכתבה זו</label>
-            <input type="text" id="l-email" placeholder="client@example.co.il (אפשר כמה, מופרדים בפסיק)">
-          </div>
-        </div>
-        <label>Webhooks לכתבה זו (כתובת בכל שורה)</label>
-        <textarea id="l-webhooks" style="min-height:70px" placeholder="https://hook.eu1.make.com/..."></textarea>
-        <div class="actions" style="margin-top:10px">
-          <button class="btn btn-ghost btn-sm" id="btn-test-article-lead" style="display:none">🧪 ליד בדיקה לכתבה זו</button>
-          <span class="hint" id="l-test-hint" style="display:none">שולח ליד מסומן "בדיקה" ליעדים של הכתבה כפי שנשמרו (שמרו קודם אם שיניתם).</span>
-        </div>
-      </div>
     </div>
   </section>
 
@@ -237,27 +260,50 @@
     <div id="preview"><h3></h3><p class="sub"></p><div class="body"></div></div>
   </section>
 
+  <section class="panel" id="clientsPanel">
+    <h2>לקוחות וקמפיינים</h2>
+    <div class="hint">לכל לקוח גיליון Google Sheets משלו; לכל קמפיין טאב בגיליון של הלקוח. כתבה מצביעה על קמפיין. כל ליד נרשם גם בטאב הראשי "לידים" של הסוכנות.</div>
+    <div id="clientsList"></div>
+    <details id="clientForm" style="margin-top:14px">
+      <summary style="cursor:pointer; font-weight:700" id="clientFormTitle">+ לקוח חדש</summary>
+      <div class="row" style="margin-top:8px">
+        <div><label>שם הלקוח *</label><input type="text" id="c-name" placeholder="למשל: טופ עלי"></div>
+        <div><label>גיליון קיים (אופציונלי)</label><input type="text" id="c-sheet" placeholder="קישור לגיליון קיים; ריק = ייפתח גיליון חדש"></div>
+      </div>
+      <div class="row">
+        <div><label>מיילים להתראה על כל ליד</label><input type="text" id="c-email" placeholder="sales@client.co.il, ..."></div>
+        <div><label>לשתף את הגיליון עם</label><input type="text" id="c-share" placeholder="מיילים של הלקוח (יקבלו הרשאת עריכה)"></div>
+      </div>
+      <label>Webhooks של הלקוח (כתובת בכל שורה)</label>
+      <textarea id="c-webhooks" style="min-height:60px" placeholder="https://hook.eu1.make.com/..."></textarea>
+      <div class="actions" style="margin-top:10px">
+        <button class="btn btn-primary btn-sm" id="btn-save-client">שמירת הלקוח</button>
+        <button class="btn btn-ghost btn-sm" id="btn-cancel-client" style="display:none">ביטול עריכה</button>
+      </div>
+    </details>
+  </section>
+
   <section class="panel" id="leadsPanel">
     <h2>לידים</h2>
     <div class="actions">
-      <a class="btn btn-ghost btn-sm" id="link-sheet" href="https://docs.google.com/spreadsheets/d/1Vw1TM5Jg_WiQTxBFJCvveNm_Bn5pcgYLcu28egueMXY" target="_blank" rel="noopener">📊 פתיחת גיליון הלידים</a>
+      <a class="btn btn-ghost btn-sm" id="link-sheet" href="https://docs.google.com/spreadsheets/d/1Vw1TM5Jg_WiQTxBFJCvveNm_Bn5pcgYLcu28egueMXY" target="_blank" rel="noopener">📊 הגיליון הראשי</a>
       <select id="leads-tab" style="min-width:170px; width:auto"><option value="">טאב ראשי: לידים (הכול)</option></select>
       <button class="btn btn-ghost btn-sm" id="btn-leads">הצגת לידים אחרונים</button>
-      <button class="btn btn-ghost btn-sm" id="btn-lead-settings">⚙️ התראות ו-webhooks</button>
-      <button class="btn btn-ghost btn-sm" id="btn-clear-tests" title="מוחק מכל הטאבים את השורות שמסומנות בדיקה">🧹 מחיקת לידי בדיקה</button>
+      <button class="btn btn-ghost btn-sm" id="btn-lead-settings">⚙️ התראות ו-webhooks כלליים</button>
+      <button class="btn btn-ghost btn-sm" id="btn-clear-tests" title="מוחק מכל הגיליונות את השורות שמסומנות בדיקה">🧹 מחיקת לידי בדיקה</button>
     </div>
-    <div class="hint">ניהול הלידים עצמו (סטטוס, הערות) נעשה בגיליון - עמודת "סטטוס" היא רשימה נפתחת. כאן רואים את האחרונים ומגדירים לאן כל ליד חדש נשלח.</div>
+    <div class="hint">ניהול הלידים עצמו (סטטוס, הערות) נעשה בגיליונות - עמודת "סטטוס" היא רשימה נפתחת. כאן רואים את האחרונים ומגדירים יעדים כלליים לכל הלידים.</div>
     <div id="leadsList"></div>
     <div id="leadSettings" style="display:none; margin-top:14px; padding:14px; background:#f7f8fa; border-radius:10px">
-      <label>מייל להתראה על כל ליד חדש</label>
-      <input type="text" id="ls-email" placeholder="sales@example.co.il (ריק = בלי מייל)">
-      <div class="hint">כל ליד שנקלט נשלח מיידית למייל הזה, עם קישור לחיוג ולוואטסאפ.</div>
-      <label>Webhooks להעברת לידים (כתובת אחת בכל שורה)</label>
+      <label>מייל להתראה על כל ליד חדש (של הסוכנות)</label>
+      <input type="text" id="ls-email" placeholder="leads@42creative.co.il (ריק = בלי מייל)">
+      <div class="hint">כל ליד מכל לקוח נשלח גם למייל הזה. מיילים של לקוחות מוגדרים בלקוח ובקמפיין.</div>
+      <label>Webhooks כלליים (כתובת אחת בכל שורה)</label>
       <textarea id="ls-webhooks" style="min-height:90px" placeholder="https://hook.eu1.make.com/...&#10;https://hooks.zapier.com/hooks/catch/..."></textarea>
-      <div class="hint">כל ליד נשלח כ-JSON (POST) לכל כתובת ברשימה - ככה מחברים CRM, Make, Zapier, וואטסאפ ועוד. תוצאת השליחה נרשמת בעמודה "העברה" בגיליון.</div>
+      <div class="hint">כל ליד נשלח כ-JSON (POST) לכל כתובת ברשימה. תוצאת השליחה נרשמת בעמודה "העברה" בגיליון.</div>
       <div class="actions" style="margin-top:12px">
         <button class="btn btn-primary btn-sm" id="btn-save-lead-settings">שמירת ההגדרות</button>
-        <button class="btn btn-ghost btn-sm" id="btn-test-lead">🧪 שליחת ליד בדיקה</button>
+        <button class="btn btn-ghost btn-sm" id="btn-test-lead">🧪 שליחת ליד בדיקה (כללי)</button>
       </div>
     </div>
   </section>
@@ -272,6 +318,28 @@
       <button class="btn btn-ghost btn-sm" id="btn-check-github">בדיקת חיבור</button>
     </div>
   </section>
+
+  <section class="panel" id="accessPanel">
+    <h2>גישה</h2>
+    <div id="svc-status" style="font-size:13.5px"></div>
+    <label>Google Client ID (לכפתור "כניסה עם גוגל")</label>
+    <input type="text" id="ac-client" placeholder="1234567890-abcdef.apps.googleusercontent.com">
+    <div class="hint">יוצרים ב-Google Cloud Console ← APIs &amp; Services ← Credentials ← Create credentials ← OAuth client ID ← Web application, עם Authorized JavaScript origin: <b id="ac-origin">https://orisamuel.github.io</b>. מדביקים כאן את ה-Client ID (זה לא סוד). אין צורך ב-Client secret.</div>
+    <div class="row">
+      <div>
+        <label>דומיין ארגוני שנכנס אוטומטית</label>
+        <input type="text" id="ac-domain" placeholder="42creative.co.il">
+      </div>
+      <div>
+        <label>חשבונות נוספים מורשים (מייל בכל שורה)</label>
+        <textarea id="ac-emails" style="min-height:70px" placeholder="freelancer@gmail.com"></textarea>
+      </div>
+    </div>
+    <label class="check" id="ac-disable-wrap" style="display:none; margin-top:10px"><input type="checkbox" id="ac-disable"> לבטל את סיסמת הגיבוי (מעכשיו רק כניסה עם גוגל)</label>
+    <div class="actions" style="margin-top:10px">
+      <button class="btn btn-primary btn-sm" id="btn-save-access">שמירת הגדרות הגישה</button>
+    </div>
+  </section>
 </div>
 
 <script>
@@ -279,14 +347,19 @@
   'use strict';
   var API = 'https://script.google.com/macros/s/AKfycbz4XJXiKdMbF6nxmfedy0SwdnbXgpdTfzKzFWMDtVmynumXSn1i-VBN__dk89RjKgRU4A/exec';
   var CATEGORIES = ['חדשות', 'כלכלה', 'צרכנות', 'טכנולוגיה', 'לייפסטייל', 'ספורט'];
+  var DEFAULT_AUTHOR = 'מערכת Channel 18';
 
   var $ = function (id) { return document.getElementById(id); };
   var statusEl = $('status');
+  var session = '';
+  var me = null;
   var editingId = null;
-  var editingLead = null;
   var editingOriginal = null;
   var editingType = 'manual';
-  var adminPass = '';
+  var articleOrigin = 'manual';
+  var articles = [];
+  var registry = { clients: {}, campaigns: {} };
+  var editingClientId = '';
 
   function showStatus(msg, ok, linkUrl, linkText) {
     statusEl.textContent = msg;
@@ -301,83 +374,10 @@
     statusEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
-  function api(action, payload) {
-    if (!adminPass) {
-      lockScreen();
-      return Promise.reject(new Error('no-password'));
-    }
-    return fetch(API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(Object.assign({ action: action, password: adminPass }, payload || {}))
-    }).then(function (r) { return r.json(); });
+  function fail(err, prefix) {
+    if (err && err.message === 'no-session') return;
+    showStatus((prefix || 'שגיאה') + ': ' + (err && err.message ? err.message : err), false);
   }
-
-  /* ---------- מסך נעילה ---------- */
-  function unlockApp() {
-    $('lock').style.display = 'none';
-    $('app').style.display = 'grid';
-    $('btn-logout').style.display = 'block';
-    checkGitHub();
-  }
-
-  function lockScreen() {
-    adminPass = '';
-    try { localStorage.removeItem('admin42pass'); } catch (e) {}
-    $('app').style.display = 'none';
-    $('btn-logout').style.display = 'none';
-    $('lock').style.display = 'flex';
-  }
-
-  function verifyPass(pass, silent) {
-    return fetch(API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'checkAuth', password: pass })
-    })
-      .then(function (r) { return r.json(); })
-      .then(function (res) {
-        if (res.success) {
-          adminPass = pass;
-          try { localStorage.setItem('admin42pass', pass); } catch (e) {}
-          unlockApp();
-          return true;
-        }
-        if (!silent) {
-          var err = $('lock-err');
-          err.textContent = res.message || 'סיסמה שגויה';
-          err.style.display = 'block';
-        }
-        return false;
-      })
-      .catch(function () {
-        if (!silent) {
-          var err = $('lock-err');
-          err.textContent = 'בעיית תקשורת עם השרת - נסו שוב';
-          err.style.display = 'block';
-        }
-        return false;
-      });
-  }
-
-  $('btn-unlock').addEventListener('click', function () {
-    var pass = $('lock-pass').value.trim();
-    if (!pass) return;
-    var done = busy(this, 'בודק...');
-    verifyPass(pass, false).finally(done);
-  });
-
-  $('lock-pass').addEventListener('keydown', function (ev) {
-    if (ev.key === 'Enter') $('btn-unlock').click();
-  });
-
-  $('btn-logout').addEventListener('click', lockScreen);
-
-  /* כניסה שקטה אם הסיסמה כבר שמורה בדפדפן */
-  try {
-    var savedPass = localStorage.getItem('admin42pass');
-    if (savedPass) verifyPass(savedPass, true);
-  } catch (e) {}
 
   function busy(btn, text) {
     btn.disabled = true;
@@ -386,7 +386,150 @@
     return function () { btn.disabled = false; btn.textContent = btn.dataset.orig; };
   }
 
-  /* קטגוריות */
+  function post(payload) {
+    return fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    }).then(function (r) { return r.json(); });
+  }
+
+  function publicApi(action, payload) {
+    return post(Object.assign({ action: action }, payload || {}));
+  }
+
+  /* כל פעולה מנוהלת נשלחת עם ה-session; אם פג - חוזרים למסך הכניסה */
+  function api(action, payload) {
+    if (!session) { lockScreen(''); return Promise.reject(new Error('no-session')); }
+    return post(Object.assign({ action: action, session: session }, payload || {})).then(function (res) {
+      if (res && res.code === 'unauthorized') {
+        lockScreen('החיבור פג - היכנסו שוב');
+        throw new Error('no-session');
+      }
+      return res;
+    });
+  }
+
+  /* ---------- כניסה: גוגל + סיסמת גיבוי ---------- */
+  function setLockErr(msg) {
+    var el = $('lock-err');
+    el.textContent = msg || '';
+    el.style.display = msg ? 'block' : 'none';
+  }
+
+  function unlockApp() {
+    $('lock').style.display = 'none';
+    $('app').style.display = 'grid';
+    $('btn-logout').style.display = 'block';
+    $('who').textContent = me ? (me.via === 'password' ? 'מחובר עם סיסמת גיבוי' : 'מחובר: ' + me.email) : '';
+    loadRegistry().then(loadArticles);
+    checkGitHub();
+    checkServices();
+    loadAccessSettings();
+  }
+
+  function lockScreen(msg) {
+    session = '';
+    me = null;
+    try { localStorage.removeItem('c18_session'); localStorage.removeItem('c18_user'); } catch (e) {}
+    $('app').style.display = 'none';
+    $('btn-logout').style.display = 'none';
+    $('who').textContent = '';
+    $('lock').style.display = 'flex';
+    if (msg) setLockErr(msg);
+  }
+
+  function onLoggedIn(res) {
+    session = res.session;
+    me = { email: res.email, name: res.name || '', via: res.via };
+    try { localStorage.setItem('c18_session', session); localStorage.setItem('c18_user', JSON.stringify(me)); } catch (e) {}
+    setLockErr('');
+    unlockApp();
+  }
+
+  function onGoogleCredential(resp) {
+    setLockErr('');
+    $('gsi-hint').textContent = 'מאמת מול השרת...';
+    publicApi('login', { idToken: resp.credential }).then(function (res) {
+      if (!res.success) throw new Error(res.message);
+      onLoggedIn(res);
+    }).catch(function (err) {
+      $('gsi-hint').textContent = 'הכניסה נכשלה';
+      setLockErr(err.message);
+    });
+  }
+
+  function setupGoogle(clientId) {
+    var tries = 0;
+    (function waitGis() {
+      if (window.google && google.accounts && google.accounts.id) {
+        google.accounts.id.initialize({ client_id: clientId, callback: onGoogleCredential, auto_select: false, ux_mode: 'popup', itp_support: true });
+        google.accounts.id.renderButton($('gsi-btn'), { theme: 'outline', size: 'large', text: 'signin_with', shape: 'pill', locale: 'he', width: 280 });
+      } else if (tries++ < 60) {
+        setTimeout(waitGis, 100);
+      } else {
+        $('gsi-hint').textContent = 'ספריית הכניסה של גוגל לא נטענה - בדקו חוסם פרסומות ורעננו.';
+      }
+    })();
+  }
+
+  function showPasswordLogin() {
+    $('pass-box').style.display = 'block';
+    $('pass-toggle').style.display = 'none';
+  }
+
+  function initLogin() {
+    publicApi('getPublicConfig').then(function (cfg) {
+      if (cfg.googleClientId) {
+        $('gsi-hint').textContent = 'כניסה עם חשבון גוגל של ' + cfg.allowedDomain + ' או חשבון מורשה';
+        setupGoogle(cfg.googleClientId);
+      } else {
+        $('gsi-hint').textContent = 'כניסת גוגל עוד לא הוגדרה. היכנסו עם סיסמת הגיבוי והדביקו Client ID בבלוק "גישה".';
+        showPasswordLogin();
+      }
+      if (!cfg.passwordLogin) { $('pass-toggle').style.display = 'none'; $('pass-box').style.display = 'none'; }
+    }).catch(function () {
+      $('gsi-hint').textContent = 'אין תקשורת עם השרת - נסו לרענן.';
+      showPasswordLogin();
+    });
+  }
+
+  $('pass-toggle').addEventListener('click', function (ev) { ev.preventDefault(); showPasswordLogin(); $('lock-pass').focus(); });
+
+  $('btn-unlock').addEventListener('click', function () {
+    var pass = $('lock-pass').value.trim();
+    if (!pass) return;
+    var done = busy(this, 'בודק...');
+    publicApi('login', { password: pass }).then(function (res) {
+      if (!res.success) throw new Error(res.message);
+      $('lock-pass').value = '';
+      onLoggedIn(res);
+    }).catch(function (err) { setLockErr(err.message || 'הכניסה נכשלה'); }).finally(done);
+  });
+  $('lock-pass').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') $('btn-unlock').click(); });
+
+  $('btn-logout').addEventListener('click', function () {
+    var s = session;
+    try { if (window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect(); } catch (e) {}
+    if (s) post({ action: 'logout', session: s }).catch(function () {});
+    lockScreen('');
+  });
+
+  /* כניסה שקטה אם יש session שמור בדפדפן */
+  initLogin();
+  try {
+    var savedSession = localStorage.getItem('c18_session');
+    if (savedSession) {
+      session = savedSession;
+      me = JSON.parse(localStorage.getItem('c18_user') || 'null');
+      post({ action: 'checkAuth', session: session }).then(function (res) {
+        if (res.success) { me = { email: res.email, name: res.name || '', via: res.via }; unlockApp(); }
+        else { session = ''; me = null; try { localStorage.removeItem('c18_session'); } catch (e) {} }
+      }).catch(function () { session = ''; me = null; });
+    }
+  } catch (e) {}
+
+  /* ---------- קטגוריות ---------- */
   function fillCategories(list) {
     $('f-category').innerHTML = list.map(function (c) { return '<option>' + c + '</option>'; }).join('');
   }
@@ -395,7 +538,286 @@
     if (s.categories) fillCategories(s.categories.map(function (c) { return c.name; }));
   }).catch(function () {});
 
-  /* ---------- שדות טופס הלידים: ניתנים לעריכה + שדות מותאמים ---------- */
+  /* ---------- עזרי תצוגה ---------- */
+  function fmtDate(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d)) return String(iso);
+    return d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' +
+      d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+  }
+  var HOW = { ai: ['AI + עריכה', 'ai'], manual: ['ידני', 'manual'], promoted: ['הועלה מ-RSS', 'promoted'], rss: ['RSS אוטומטי', 'rss'] };
+  function badge(via) {
+    var h = HOW[via] || ['לא ידוע', ''];
+    var b = document.createElement('span');
+    b.className = 'badge ' + h[1];
+    b.textContent = h[0];
+    return b;
+  }
+  function el(tag, text, cls) {
+    var e = document.createElement(tag);
+    if (text != null) e.textContent = text;
+    if (cls) e.className = cls;
+    return e;
+  }
+
+  /* ---------- טבלת הכתבות ---------- */
+  function loadArticles() {
+    return api('getArticles').then(function (res) {
+      if (!res.success) throw new Error(res.message);
+      articles = res.articles.slice().sort(function (a, b) { return new Date(b.date) - new Date(a.date); });
+      renderArticles();
+    }).catch(function (err) { fail(err, 'טעינת הכתבות נכשלה'); $('articlesList').textContent = ''; });
+  }
+
+  function leadTarget(a) {
+    if (!a.lead) return '';
+    var camp = a.lead.campaignId ? registry.campaigns[a.lead.campaignId] : null;
+    var client = camp ? registry.clients[camp.clientId] : null;
+    if (client) return client.name + ' / ' + camp.name;
+    if (camp) return camp.name;
+    return a.lead.campaign ? a.lead.campaign + ' (בלי לקוח)' : 'טופס בלי קמפיין';
+  }
+
+  function renderArticles() {
+    var q = $('art-search').value.trim().toLowerCase();
+    var list = $('articlesList');
+    list.innerHTML = '';
+    list.className = '';
+    var rows = articles.filter(function (a) { return !q || (a.title || '').toLowerCase().indexOf(q) > -1; });
+    if (!rows.length) { list.className = 'hint'; list.textContent = 'אין כתבות להצגה.'; return; }
+    var table = el('table', null, 'tbl');
+    var head = table.createTHead().insertRow();
+    ['כותרת', 'קטגוריה', 'איך נוצרה', 'תמונה', 'נוצרה', 'עודכנה', 'לידים', 'פעולות'].forEach(function (h) { head.appendChild(el('th', h)); });
+    var body = table.createTBody();
+    rows.forEach(function (a) {
+      var tr = body.insertRow();
+      var tdTitle = tr.insertCell(); tdTitle.className = 'wrap-cell';
+      var link = el('a', a.title); link.href = a.url; link.target = '_blank'; link.rel = 'noopener'; link.style.color = 'inherit'; link.style.fontWeight = '600';
+      tdTitle.appendChild(link);
+      if (a.featured) tdTitle.appendChild(el('span', ' ⭐', 'muted'));
+      tr.insertCell().textContent = a.category || '';
+      tr.insertCell().appendChild(badge(a.createdVia || (a.type === 'rss' ? 'rss' : 'manual')));
+      tr.insertCell().textContent = a.imageSource || '';
+      var tdC = tr.insertCell();
+      tdC.appendChild(el('div', fmtDate(a.createdAt || a.date)));
+      tdC.appendChild(el('div', a.createdBy || '', 'muted'));
+      var tdU = tr.insertCell();
+      if (a.updatedAt) { tdU.appendChild(el('div', fmtDate(a.updatedAt))); tdU.appendChild(el('div', a.updatedBy || '', 'muted')); }
+      else tdU.appendChild(el('span', '-', 'muted'));
+      var tdL = tr.insertCell(); tdL.className = 'wrap-cell';
+      tdL.textContent = leadTarget(a) || '-';
+      var tdA = tr.insertCell();
+      var edit = el('button', 'עריכה', 'link-btn'); edit.type = 'button';
+      edit.addEventListener('click', function () { openArticle(a.id); });
+      tdA.appendChild(edit);
+      if (a.type !== 'rss') {
+        tdA.appendChild(document.createTextNode(' · '));
+        var del = el('button', 'מחיקה', 'link-btn danger'); del.type = 'button';
+        del.addEventListener('click', function () { deleteArticle(a); });
+        tdA.appendChild(del);
+      }
+    });
+    list.appendChild(table);
+    var summary = el('div', rows.length + ' כתבות (' + articles.filter(function (a) { return a.type !== 'rss'; }).length + ' קבועות, ' + articles.filter(function (a) { return a.type === 'rss'; }).length + ' RSS)', 'hint');
+    list.appendChild(summary);
+  }
+
+  $('art-search').addEventListener('input', renderArticles);
+  $('btn-list').addEventListener('click', function () {
+    var done = busy(this, 'טוען...');
+    loadRegistry().then(loadArticles).finally(done);
+  });
+  $('btn-new-article').addEventListener('click', function () {
+    resetEditor();
+    $('editorPanel').scrollIntoView({ behavior: 'smooth' });
+    $('ai-topic').focus();
+  });
+
+  function deleteArticle(a) {
+    if (!confirm('למחוק את הכתבה "' + a.title + '"?\n\nהיא תרד מהאתר תוך כמה דקות. אם רץ עליה קמפיין - הקישור יישבר.')) return;
+    api('deleteArticle', { id: a.id }).then(function (res) {
+      if (!res.success) throw new Error(res.message);
+      showStatus(res.message, true);
+      if (editingId === a.id) resetEditor();
+      loadArticles();
+    }).catch(function (err) { fail(err); });
+  }
+
+  /* ---------- לקוחות וקמפיינים ---------- */
+  function loadRegistry() {
+    return api('getClients').then(function (res) {
+      if (!res.success) throw new Error(res.message);
+      registry = { clients: res.clients || {}, campaigns: res.campaigns || {} };
+      renderClients();
+      fillClientSelects();
+      if (articles.length) renderArticles();
+    }).catch(function (err) { fail(err, 'טעינת הלקוחות נכשלה'); });
+  }
+
+  function clientList() {
+    return Object.keys(registry.clients).map(function (id) { return registry.clients[id]; })
+      .sort(function (a, b) { return a.name.localeCompare(b.name, 'he'); });
+  }
+  function campaignsOf(clientId) {
+    return Object.keys(registry.campaigns).map(function (id) { return registry.campaigns[id]; })
+      .filter(function (c) { return c.clientId === clientId; })
+      .sort(function (a, b) { return a.name.localeCompare(b.name, 'he'); });
+  }
+
+  function renderClients() {
+    var box = $('clientsList');
+    box.innerHTML = '';
+    var clients = clientList();
+    if (!clients.length) { box.appendChild(el('div', 'עדיין אין לקוחות. פתחו "+ לקוח חדש" למטה.', 'hint')); return; }
+    clients.forEach(function (c) {
+      var card = el('div', null, 'client-card');
+      var head = el('div', null, 'client-head');
+      head.appendChild(el('b', c.name));
+      if (c.sheetUrl) { var a = el('a', '📊 הגיליון של הלקוח'); a.href = c.sheetUrl; a.target = '_blank'; a.rel = 'noopener'; a.style.fontSize = '13px'; head.appendChild(a); }
+      var editBtn = el('button', 'עריכת הלקוח', 'link-btn'); editBtn.type = 'button';
+      editBtn.addEventListener('click', function () { editClient(c); });
+      head.appendChild(editBtn);
+      var meta = el('div', null, 'client-meta');
+      var parts = [];
+      if (c.emails && c.emails.length) parts.push('מיילים: ' + c.emails.join(', '));
+      if (c.webhooks && c.webhooks.length) parts.push('webhooks: ' + c.webhooks.length);
+      if (c.sharedWith) parts.push('משותף עם: ' + c.sharedWith);
+      if (c.createdBy) parts.push('נוצר ' + c.createdAt + ' על ידי ' + c.createdBy);
+      meta.textContent = parts.join(' | ');
+      head.appendChild(meta);
+      card.appendChild(head);
+
+      var camps = campaignsOf(c.id);
+      if (camps.length) {
+        var t = el('table', null, 'tbl');
+        var hr = t.createTHead().insertRow();
+        ['קמפיין', 'טאב בגיליון', 'מיילים', 'webhooks', 'כתבות', ''].forEach(function (h) { hr.appendChild(el('th', h)); });
+        var tb = t.createTBody();
+        camps.forEach(function (k) {
+          var tr = tb.insertRow();
+          tr.insertCell().textContent = k.name;
+          tr.insertCell().textContent = k.tab;
+          tr.insertCell().textContent = (k.emails || []).join(', ') || '-';
+          tr.insertCell().textContent = (k.webhooks || []).length || '-';
+          tr.insertCell().textContent = articles.filter(function (a) { return a.lead && a.lead.campaignId === k.id; }).length;
+          var td = tr.insertCell();
+          var test = el('button', '🧪 ליד בדיקה', 'link-btn'); test.type = 'button';
+          test.addEventListener('click', function () { testCampaign(k, c); });
+          td.appendChild(test);
+        });
+        card.appendChild(t);
+      } else {
+        card.appendChild(el('div', 'עדיין אין קמפיינים ללקוח הזה.', 'hint'));
+      }
+
+      var add = el('div', null, 'actions'); add.style.marginTop = '10px';
+      var nameIn = el('input'); nameIn.type = 'text'; nameIn.placeholder = 'שם קמפיין חדש, למשל: טופ עלי - ספטמבר'; nameIn.style.flex = '1'; nameIn.style.minWidth = '200px'; nameIn.style.width = 'auto';
+      var addBtn = el('button', '+ קמפיין', 'btn btn-ghost btn-sm'); addBtn.type = 'button';
+      addBtn.addEventListener('click', function () {
+        var name = nameIn.value.trim();
+        if (!name) { showStatus('כתבו שם לקמפיין.', false); return; }
+        var done = busy(addBtn, 'יוצר...');
+        api('saveCampaign', { clientId: c.id, name: name }).then(function (res) {
+          if (!res.success) throw new Error(res.message);
+          showStatus(res.message, true, res.sheetUrl, 'פתיחת הגיליון');
+          return loadRegistry();
+        }).catch(function (err) { fail(err); }).finally(done);
+      });
+      add.appendChild(nameIn); add.appendChild(addBtn);
+      card.appendChild(add);
+      box.appendChild(card);
+    });
+  }
+
+  function testCampaign(k, c) {
+    if (!confirm('לשלוח ליד בדיקה לקמפיין "' + k.name + '" של ' + c.name + '?')) return;
+    api('testLead', { campaignId: k.id }).then(function (res) {
+      if (!res.success) throw new Error(res.message);
+      var r = res.routing || {};
+      var msg = 'ליד הבדיקה נרשם ב"' + (r.tab || '') + '" וגם בטאב הראשי.';
+      msg += r.emails ? ' נשלח מייל ל-' + r.emails + ' נמענים.' : ' לא הוגדר מייל התראה.';
+      msg += r.forwarded ? ' Webhooks: ' + r.forwarded + '.' : '';
+      if (r.warning) msg += ' ⚠️ ' + r.warning;
+      showStatus(msg, !r.warning, r.clientSheetUrl || res.sheetUrl, 'פתיחת הגיליון');
+    }).catch(function (err) { fail(err); });
+  }
+
+  function editClient(c) {
+    editingClientId = c.id;
+    $('clientForm').open = true;
+    $('clientFormTitle').textContent = 'עריכת הלקוח: ' + c.name;
+    $('c-name').value = c.name;
+    $('c-sheet').value = c.sheetUrl || '';
+    $('c-email').value = (c.emails || []).join(', ');
+    $('c-share').value = '';
+    $('c-webhooks').value = (c.webhooks || []).join('\n');
+    $('btn-save-client').textContent = 'שמירת השינויים';
+    $('btn-cancel-client').style.display = 'inline-block';
+    $('clientForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function resetClientForm() {
+    editingClientId = '';
+    $('clientFormTitle').textContent = '+ לקוח חדש';
+    ['c-name', 'c-sheet', 'c-email', 'c-share', 'c-webhooks'].forEach(function (id) { $(id).value = ''; });
+    $('btn-save-client').textContent = 'שמירת הלקוח';
+    $('btn-cancel-client').style.display = 'none';
+  }
+  $('btn-cancel-client').addEventListener('click', resetClientForm);
+
+  $('btn-save-client').addEventListener('click', function () {
+    var name = $('c-name').value.trim();
+    if (!name) { showStatus('חסר שם לקוח.', false); return; }
+    var done = busy(this, 'שומר...');
+    api('saveClient', {
+      id: editingClientId, name: name, sheetUrl: $('c-sheet').value.trim(),
+      notifyEmail: $('c-email').value.trim(), shareWith: $('c-share').value.trim(), webhooks: $('c-webhooks').value.trim()
+    }).then(function (res) {
+      if (!res.success) throw new Error(res.message);
+      showStatus(res.message, true, res.sheetUrl, 'פתיחת הגיליון');
+      resetClientForm();
+      $('clientForm').open = false;
+      return loadRegistry();
+    }).catch(function (err) { fail(err); }).finally(done);
+  });
+
+  /* בחירת לקוח/קמפיין בטופס הכתבה */
+  function fillClientSelects(keepClient, keepCampaign) {
+    var cs = $('l-client');
+    var cur = keepClient !== undefined ? keepClient : cs.value;
+    cs.innerHTML = '<option value="">- בלי לקוח (רק הטאב הראשי) -</option>';
+    clientList().forEach(function (c) { var o = el('option', c.name); o.value = c.id; cs.appendChild(o); });
+    cs.value = registry.clients[cur] ? cur : '';
+    fillCampaignSelect(keepCampaign !== undefined ? keepCampaign : $('l-campaign').value);
+  }
+
+  function fillCampaignSelect(keep) {
+    var ks = $('l-campaign');
+    var clientId = $('l-client').value;
+    ks.innerHTML = '';
+    if (!clientId) { ks.appendChild(el('option', '- בחרו לקוח קודם -')).value = ''; ks.value = ''; return; }
+    ks.appendChild(el('option', '- בחרו קמפיין -')).value = '';
+    campaignsOf(clientId).forEach(function (k) { var o = el('option', k.name); o.value = k.id; ks.appendChild(o); });
+    ks.value = registry.campaigns[keep] && registry.campaigns[keep].clientId === clientId ? keep : '';
+  }
+
+  $('l-client').addEventListener('change', function () { fillCampaignSelect(''); });
+
+  $('btn-new-campaign').addEventListener('click', function () {
+    var clientId = $('l-client').value;
+    if (!clientId) { showStatus('בחרו לקוח קודם (או צרו אחד בבלוק "לקוחות וקמפיינים").', false); return; }
+    var name = prompt('שם הקמפיין החדש ללקוח ' + registry.clients[clientId].name + ':');
+    if (!name || !name.trim()) return;
+    var done = busy(this, 'יוצר...');
+    api('saveCampaign', { clientId: clientId, name: name.trim() }).then(function (res) {
+      if (!res.success) throw new Error(res.message);
+      showStatus(res.message, true, res.sheetUrl, 'פתיחת הגיליון');
+      return loadRegistry().then(function () { fillClientSelects(clientId, res.id); });
+    }).catch(function (err) { fail(err); }).finally(done);
+  });
+
+  /* ---------- שדות טופס הלידים ---------- */
   var STANDARD_FIELDS = [
     { name: 'fullname', label: 'שם מלא', type: 'text', required: true, on: true },
     { name: 'phone', label: 'טלפון נייד', type: 'tel', required: true, on: true },
@@ -431,11 +853,10 @@
     del.type = 'button'; del.className = 'lf-del'; del.textContent = '✕'; del.title = 'הסרת השדה';
     del.disabled = !custom;
     del.addEventListener('click', function () { row.remove(); });
-    [on, label, type, options, req, del].forEach(function (el) { row.appendChild(el); });
+    [on, label, type, options, req, del].forEach(function (x) { row.appendChild(x); });
     return row;
   }
 
-  /* מציג את השדות: null = ברירת מחדל לכתבה חדשה, אחרת לפי השדות השמורים בכתבה */
   function setFields(saved) {
     var box = $('l-fields');
     box.innerHTML = '';
@@ -486,37 +907,19 @@
     $('leadFields').style.display = this.checked ? 'block' : 'none';
   });
 
-  /* ---------- עריכת כתבה קיימת ---------- */
-  $('btn-list').addEventListener('click', function () {
-    var done = busy(this, 'טוען...');
-    api('getArticles').then(function (res) {
-      if (!res.success) throw new Error(res.message);
-      var picker = $('edit-picker');
-      picker.innerHTML = res.articles.map(function (a) {
-        return '<option value="' + a.id + '">' + a.title.slice(0, 55) + ' (' + a.category + ')' + (a.type === 'rss' ? ' · RSS' : '') + '</option>';
-      }).join('');
-      picker.style.display = 'block';
-      $('btn-load').style.display = 'inline-block';
-      showStatus('נטענו ' + res.articles.length + ' כתבות - בחרו אחת ולחצו "פתח לעריכה".', true);
-    }).catch(function (err) {
-      if (err.message !== 'no-password') showStatus('שגיאה: ' + err.message, false);
-    }).finally(done);
-  });
-
-  $('btn-load').addEventListener('click', function () {
-    var id = $('edit-picker').value;
-    if (!id) return;
-    var done = busy(this, 'טוען...');
+  /* ---------- פתיחת כתבה לעריכה ---------- */
+  function openArticle(id) {
+    showStatus('טוען את הכתבה...', true);
     api('getArticle', { id: id }).then(function (res) {
       if (!res.success) throw new Error(res.message);
       var a = res.article;
       editingId = a.id;
-      editingLead = a.lead || null;
       editingOriginal = a;
+      articleOrigin = a.createdVia === 'ai' ? 'ai' : 'manual';
       $('f-title').value = a.title || '';
       $('f-subtitle').value = a.subtitle || '';
       $('f-category').value = a.category || CATEGORIES[0];
-      $('f-author').value = a.author || 'מערכת Channel 18';
+      $('f-author').value = a.author || DEFAULT_AUTHOR;
       $('f-image').value = a.image || '';
       $('f-credit').value = a.imageCredit || '';
       $('f-slug').value = a.id;
@@ -530,18 +933,18 @@
         $('l-title').value = a.lead.title || '';
         $('l-subtitle').value = a.lead.subtitle || '';
         $('l-button').value = a.lead.buttonText || 'שלחו לי פרטים';
-        $('l-campaign').value = a.lead.campaign || '';
         $('l-success').value = a.lead.successMessage || '';
-        $('l-sheet-tab').value = a.lead.sheetTab || '';
-        $('l-email').value = a.lead.notifyEmail || '';
-        $('l-webhooks').value = a.lead.webhooks || '';
+        var campId = a.lead.campaignId || '';
+        var clientId = a.lead.clientId || (registry.campaigns[campId] ? registry.campaigns[campId].clientId : '');
+        fillClientSelects(clientId, campId);
         setFields(a.lead.fields || []);
       } else {
         $('lead-on').checked = false;
         $('leadFields').style.display = 'none';
+        fillClientSelects('', '');
         setFields(null);
       }
-      $('edit-title').textContent = a.title.slice(0, 45);
+      $('edit-title').textContent = (a.title || '').slice(0, 45);
       editingType = res.type || 'manual';
       $('edit-type').textContent = editingType === 'rss' ? ' (כתבת RSS - מתחלפת בסבב היומי)' : '';
       $('btn-promote').style.display = editingType === 'rss' ? 'inline-block' : 'none';
@@ -549,58 +952,70 @@
       $('l-test-hint').style.display = 'inline';
       $('editBar').className = 'on';
       $('btn-publish').textContent = 'שמירת השינויים';
+      $('editBar').scrollIntoView({ behavior: 'smooth', block: 'start' });
       showStatus(editingType === 'rss'
         ? 'כתבת RSS נטענה לעריכה. שימו לב: היא תתחלף בסבב היומי - לחצו "הפוך לכתבה קבועה" כדי לשמור אותה לתמיד.'
         : 'הכתבה נטענה לעריכה. ערכו ולחצו "שמירת השינויים".', true);
-    }).catch(function (err) {
-      if (err.message !== 'no-password') showStatus('שגיאה: ' + err.message, false);
-    }).finally(done);
-  });
+    }).catch(function (err) { fail(err); });
+  }
 
-  function exitEditMode() {
+  function resetEditor() {
     editingId = null;
-    editingLead = null;
     editingOriginal = null;
     editingType = 'manual';
+    articleOrigin = 'manual';
     $('editBar').className = '';
     $('btn-promote').style.display = 'none';
     $('btn-test-article-lead').style.display = 'none';
     $('l-test-hint').style.display = 'none';
     $('f-slug').disabled = false;
     $('btn-publish').textContent = 'פרסום הכתבה לאתר';
+    ['f-title', 'f-subtitle', 'f-image', 'f-credit', 'f-slug', 'f-body', 'ai-topic', 'l-title', 'l-subtitle'].forEach(function (id) { $(id).value = ''; });
+    $('f-author').value = DEFAULT_AUTHOR;
+    $('f-featured').checked = false;
+    $('lead-on').checked = false;
+    $('leadFields').style.display = 'none';
+    fillClientSelects('', '');
+    setFields(null);
+    setPreviewImg('');
   }
+
+  $('btn-cancel-edit').addEventListener('click', function () {
+    resetEditor();
+    showStatus('חזרנו למצב כתבה חדשה.', true);
+  });
 
   /* ---------- הפיכת כתבת RSS לקבועה ---------- */
   $('btn-promote').addEventListener('click', function () {
     if (!editingId || editingType !== 'rss') return;
     if (!confirm('להפוך את הכתבה לקבועה?\n\nהיא תעבור לכתבות הקבועות (עם כתובת URL חדשה וקריאה) ולא תתחלף יותר בסבב היומי.')) return;
-
     var done = busy(this, 'מעביר...');
     showStatus('מעביר את הכתבה לכתבות הקבועות...', true);
-
-    api('promoteArticle', { id: editingId })
-      .then(function (res) {
-        if (!res.success) throw new Error(res.message);
-        showStatus('הכתבה הפכה לקבועה! היא כבר לא תתחלף. הכתובת החדשה שלה:', true, res.url, res.id + '.html');
-        editingId = res.id;
-        editingType = 'manual';
-        $('f-slug').value = res.id;
-        $('edit-type').textContent = ' (כתבה קבועה)';
-        $('btn-promote').style.display = 'none';
-      })
-      .catch(function (err) {
-        if (err.message !== 'no-password') showStatus('שגיאה: ' + err.message, false);
-      })
-      .finally(done);
+    api('promoteArticle', { id: editingId }).then(function (res) {
+      if (!res.success) throw new Error(res.message);
+      showStatus('הכתבה הפכה לקבועה! היא כבר לא תתחלף. הכתובת החדשה שלה:', true, res.url, res.id + '.html');
+      editingId = res.id;
+      editingType = 'manual';
+      $('f-slug').value = res.id;
+      $('edit-type').textContent = ' (כתבה קבועה)';
+      $('btn-promote').style.display = 'none';
+      loadArticles();
+    }).catch(function (err) { fail(err); }).finally(done);
   });
 
-  $('btn-cancel-edit').addEventListener('click', function () {
-    exitEditMode();
-    ['f-title', 'f-subtitle', 'f-image', 'f-credit', 'f-slug', 'f-body', 'ai-topic'].forEach(function (id) { $(id).value = ''; });
-    $('f-featured').checked = false;
-    setPreviewImg('');
-    setFields(null);
-    showStatus('חזרנו למצב כתבה חדשה.', true);
+  /* ---------- ליד בדיקה לכתבה ---------- */
+  $('btn-test-article-lead').addEventListener('click', function () {
+    if (!editingId) { showStatus('קודם פתחו כתבה לעריכה - הניתוב נקרא מהכתבה השמורה.', false); return; }
+    var done = busy(this, 'שולח...');
+    api('testLead', { article: editingId }).then(function (res) {
+      if (!res.success) throw new Error(res.message);
+      var r = res.routing || {};
+      var msg = r.client ? 'ליד הבדיקה נרשם אצל ' + r.client + ' בטאב "' + (r.campaign || '') + '" וגם בטאב הראשי.' : 'ליד הבדיקה נרשם בטאב הראשי בלבד (לכתבה אין קמפיין).';
+      msg += r.emails ? ' נשלח מייל ל-' + r.emails + ' נמענים.' : ' לא הוגדר מייל התראה.';
+      msg += r.forwarded ? ' Webhooks: ' + r.forwarded + '.' : '';
+      if (r.warning) msg += ' ⚠️ ' + r.warning;
+      showStatus(msg, !r.warning, r.clientSheetUrl || res.sheetUrl, 'פתיחת הגיליון');
+    }).catch(function (err) { fail(err); }).finally(done);
   });
 
   /* ---------- תמונות ---------- */
@@ -611,7 +1026,6 @@
   }
 
   $('f-image').addEventListener('change', function () { setPreviewImg(this.value.trim()); });
-
   $('btn-upload').addEventListener('click', function () { $('f-file').click(); });
 
   $('f-file').addEventListener('change', function () {
@@ -623,7 +1037,6 @@
     reader.onload = function (ev) {
       var img = new Image();
       img.onload = function () {
-        /* הקטנה ל-1600px רוחב מקסימום, JPEG */
         var scale = Math.min(1, 1600 / img.width);
         var canvas = document.createElement('canvas');
         canvas.width = Math.round(img.width * scale);
@@ -635,12 +1048,10 @@
           .then(function (res) {
             if (!res.success) throw new Error(res.message);
             $('f-image').value = res.url;
-            if (!$('f-credit').value) $('f-credit').value = 'מערכת Channel 18';
-            showStatus('התמונה הועלתה! (תהיה זמינה באתר תוך 2-1 דקות, התצוגה המקדימה מקומית)', true);
+            if (!$('f-credit').value) $('f-credit').value = DEFAULT_AUTHOR;
+            showStatus('התמונה הועלתה! (תהיה זמינה באתר תוך 2-3 דקות, התצוגה המקדימה מקומית)', true);
           })
-          .catch(function (err) {
-            if (err.message !== 'no-password') showStatus('שגיאה בהעלאה: ' + err.message, false);
-          })
+          .catch(function (err) { fail(err, 'שגיאה בהעלאה'); })
           .finally(done);
       };
       img.src = ev.target.result;
@@ -660,11 +1071,9 @@
         $('f-image').value = res.url;
         if (!$('f-credit').value) $('f-credit').value = 'AI';
         setPreviewImg(res.preview || res.url);
-        showStatus('התמונה נוצרה! (תהיה זמינה באתר תוך 2-1 דקות)', true);
+        showStatus('התמונה נוצרה! (תהיה זמינה באתר תוך 2-3 דקות)', true);
       })
-      .catch(function (err) {
-        if (err.message !== 'no-password') showStatus('שגיאה ביצירת תמונה: ' + err.message, false);
-      })
+      .catch(function (err) { fail(err, 'שגיאה ביצירת תמונה'); })
       .finally(done);
   });
 
@@ -680,11 +1089,10 @@
         $('f-title').value = res.title;
         $('f-subtitle').value = res.subtitle || '';
         $('f-body').value = res.body;
+        articleOrigin = 'ai';
         showStatus('הכתבה נכתבה! עברו על הטקסט, ערכו במידת הצורך - ואז פרסמו.', true);
       })
-      .catch(function (err) {
-        if (err.message !== 'no-password') showStatus('שגיאה ביצירת התוכן: ' + err.message, false);
-      })
+      .catch(function (err) { fail(err, 'שגיאה ביצירת התוכן'); })
       .finally(done);
   });
 
@@ -709,7 +1117,7 @@
       category: $('f-category').value,
       image: $('f-image').value.trim(),
       imageCredit: $('f-credit').value.trim(),
-      author: $('f-author').value.trim() || 'מערכת Channel 18',
+      author: $('f-author').value.trim() || DEFAULT_AUTHOR,
       date: new Date().toISOString(),
       featured: $('f-featured').checked,
       body: body,
@@ -719,6 +1127,10 @@
     if ($('lead-on').checked) {
       var fields = collectFields();
       if (!fields.length) { showStatus('בחרו לפחות שדה אחד לטופס הלידים.', false); return null; }
+      var clientId = $('l-client').value;
+      var campaignId = $('l-campaign').value;
+      if (clientId && !campaignId) { showStatus('בחרו קמפיין (או צרו אחד עם "+ קמפיין").', false); return null; }
+      var camp = registry.campaigns[campaignId];
       article.lead = {
         enabled: true,
         position: 'bottom',
@@ -726,15 +1138,13 @@
         subtitle: $('l-subtitle').value.trim(),
         buttonText: $('l-button').value.trim() || 'שליחה',
         successMessage: $('l-success').value.trim(),
-        campaign: $('l-campaign').value.trim() || slug,
-        fields: fields,
-        sheetTab: $('l-sheet-tab').value.trim(),
-        notifyEmail: $('l-email').value.trim(),
-        webhooks: $('l-webhooks').value.trim()
+        clientId: clientId,
+        campaignId: campaignId,
+        campaign: camp ? camp.name : slug,
+        fields: fields
       };
     }
 
-    /* בעריכה - משמרים שדות מקוריים שלא מנוהלים בטופס (מקור RSS וכו') */
     if (editingOriginal) {
       if (editingOriginal.source) article.source = editingOriginal.source;
       if ('rewritten' in editingOriginal) article.rewritten = editingOriginal.rewritten;
@@ -749,20 +1159,14 @@
     var isUpdate = Boolean(editingId);
     var done = busy(this, isUpdate ? 'שומר...' : 'מפרסם...');
     showStatus(isUpdate ? 'שומר שינויים...' : 'מפרסם...', true);
-
-    api(isUpdate ? 'updateArticle' : 'publishArticle', { article: article })
+    api(isUpdate ? 'updateArticle' : 'publishArticle', { article: article, origin: articleOrigin })
       .then(function (res) {
         if (!res.success) throw new Error(res.message || 'שגיאה');
-        showStatus((isUpdate ? 'הכתבה עודכנה!' : 'הכתבה פורסמה!') + ' היא תעלה לאוויר תוך 2-1 דקות בקישור:', true, res.url, res.url.split('/articles/')[1]);
-        if (!isUpdate) {
-          ['f-title', 'f-subtitle', 'f-image', 'f-credit', 'f-slug', 'f-body', 'ai-topic'].forEach(function (id) { $(id).value = ''; });
-          $('f-featured').checked = false;
-          setPreviewImg('');
-        }
+        showStatus((isUpdate ? 'הכתבה עודכנה!' : 'הכתבה פורסמה!') + ' היא תעלה לאוויר תוך 2-3 דקות בקישור:', true, res.url, res.url.split('/articles/')[1]);
+        if (!isUpdate) resetEditor();
+        loadArticles();
       })
-      .catch(function (err) {
-        if (err.message !== 'no-password') showStatus('שגיאה: ' + err.message, false);
-      })
+      .catch(function (err) { fail(err); })
       .finally(done);
   });
 
@@ -772,6 +1176,22 @@
     navigator.clipboard.writeText(JSON.stringify(article, null, 2)).then(function () {
       showStatus('ה-JSON הועתק ללוח.', true);
     });
+  });
+
+  $('btn-preview').addEventListener('click', function () {
+    var article = buildArticle();
+    if (!article) return;
+    var p = $('preview');
+    p.style.display = 'block';
+    p.querySelector('h3').textContent = article.title;
+    p.querySelector('.sub').textContent = article.subtitle;
+    p.querySelector('.body').innerHTML = article.body.split(/\n{2,}/).map(function (b) {
+      b = b.trim();
+      var div = document.createElement('div');
+      if (b.indexOf('## ') === 0) { div.innerHTML = '<h2></h2>'; div.firstChild.textContent = b.slice(3); }
+      else { div.innerHTML = '<p></p>'; div.firstChild.textContent = b; }
+      return div.innerHTML;
+    }).join('');
   });
 
   /* ---------- לידים ---------- */
@@ -789,30 +1209,13 @@
     sel.value = current;
   }
 
-  $('btn-test-article-lead').addEventListener('click', function () {
-    if (!editingId) { showStatus('קודם פתחו כתבה לעריכה - הניתוב נקרא מהכתבה השמורה.', false); return; }
-    var done = busy(this, 'שולח...');
-    api('testLead', { article: editingId, campaign: $('l-campaign').value.trim() || editingId }).then(function (res) {
-      if (!res.success) throw new Error(res.message);
-      var r = res.routing || {};
-      var msg = 'ליד הבדיקה נרשם בטאב "' + (r.tab || 'לידים') + '"' + (r.tab && r.tab !== 'לידים' ? ' וגם בטאב הראשי.' : '.');
-      msg += r.emails ? ' נשלח מייל ל-' + r.emails + ' נמענים.' : ' לא הוגדר מייל התראה.';
-      msg += r.forwarded ? ' Webhooks: ' + r.forwarded + '.' : ' אין webhooks.';
-      showStatus(msg, true, res.sheetUrl, 'פתיחת הגיליון');
-    }).catch(function (err) {
-      if (err.message !== 'no-password') showStatus('שגיאה: ' + err.message, false);
-    }).finally(done);
-  });
-
   $('btn-clear-tests').addEventListener('click', function () {
-    if (!confirm('למחוק מכל הטאבים את כל השורות שמסומנות "בדיקה"?')) return;
+    if (!confirm('למחוק מכל הגיליונות (הראשי ושל הלקוחות) את כל השורות שמסומנות "בדיקה"?')) return;
     var done = busy(this, 'מוחק...');
     api('deleteTestLeads').then(function (res) {
       if (!res.success) throw new Error(res.message);
       showStatus(res.message, true);
-    }).catch(function (err) {
-      if (err.message !== 'no-password') showStatus('שגיאה: ' + err.message, false);
-    }).finally(done);
+    }).catch(function (err) { fail(err); }).finally(done);
   });
 
   $('btn-lead-settings').addEventListener('click', function () {
@@ -826,9 +1229,7 @@
       if (res.sheetUrl) $('link-sheet').href = res.sheetUrl;
       fillTabs(res.tabs);
       box.style.display = 'block';
-    }).catch(function (err) {
-      if (err.message !== 'no-password') showStatus('שגיאה: ' + err.message, false);
-    }).finally(done);
+    }).catch(function (err) { fail(err); }).finally(done);
   });
 
   $('btn-save-lead-settings').addEventListener('click', function () {
@@ -838,7 +1239,7 @@
         if (!res.success) throw new Error(res.message);
         showStatus('הגדרות הלידים נשמרו. מומלץ לשלוח ליד בדיקה כדי לוודא שהכול מגיע.', true);
       })
-      .catch(function (err) { if (err.message !== 'no-password') showStatus('שגיאה: ' + err.message, false); })
+      .catch(function (err) { fail(err); })
       .finally(done);
   });
 
@@ -846,23 +1247,22 @@
     var done = busy(this, 'שולח...');
     api('testLead', {}).then(function (res) {
       if (!res.success) throw new Error(res.message);
-      var msg = 'ליד הבדיקה נקלט בגיליון (מסומן "בדיקה").';
-      msg += res.forwarded ? ' העברה ל-webhooks: ' + res.forwarded + '.' : ' לא מוגדרים webhooks להעברה.';
-      msg += res.notifyEmail ? ' נשלח מייל אל ' + res.notifyEmail + '.' : ' לא מוגדר מייל להתראה.';
+      var r = res.routing || {};
+      var msg = 'ליד הבדיקה נקלט בטאב הראשי (מסומן "בדיקה").';
+      msg += r.forwarded ? ' Webhooks: ' + r.forwarded + '.' : ' לא מוגדרים webhooks כלליים.';
+      msg += r.emails ? ' נשלח מייל ל-' + r.emails + ' נמענים.' : ' לא מוגדר מייל התראה כללי.';
       showStatus(msg, true, res.sheetUrl, 'פתיחת הגיליון');
-    }).catch(function (err) {
-      if (err.message !== 'no-password') showStatus('שגיאה: ' + err.message, false);
-    }).finally(done);
+    }).catch(function (err) { fail(err); }).finally(done);
   });
 
   $('btn-leads').addEventListener('click', function () {
     var done = busy(this, 'טוען...');
     api('getRecentLeads', { limit: 20, tab: $('leads-tab').value }).then(function (res) {
       if (!res.success) throw new Error(res.message);
-      var show = ['תאריך', 'שעה', 'שם מלא', 'טלפון', 'עיר', 'כתבה', 'קמפיין', 'יעד', 'utm_source', 'סטטוס', 'דגלים', 'העברה'];
+      var show = ['תאריך', 'שעה', 'שם מלא', 'טלפון', 'לקוח', 'קמפיין', 'כתבה', 'יעד', 'utm_source', 'סטטוס', 'דגלים', 'העברה'];
       var idx = show.map(function (h) { return res.headers.indexOf(h); });
       var table = document.createElement('table');
-      table.className = 'leads-table';
+      table.className = 'tbl leads-table';
       var thead = table.createTHead().insertRow();
       show.forEach(function (h) { var th = document.createElement('th'); th.textContent = h; thead.appendChild(th); });
       var tbody = table.createTBody();
@@ -876,37 +1276,29 @@
       });
       var list = $('leadsList');
       list.innerHTML = '';
-      if (!res.rows.length) {
-        list.textContent = 'עדיין אין לידים בגיליון.';
-      } else {
-        list.appendChild(table);
-      }
+      if (!res.rows.length) list.textContent = 'עדיין אין לידים בטאב הזה.';
+      else list.appendChild(table);
       if (res.sheetUrl) $('link-sheet').href = res.sheetUrl;
       fillTabs(res.tabs);
       showStatus('מוצגים ' + res.rows.length + ' לידים אחרונים מתוך ' + res.total + ' בטאב "' + (res.tab || 'לידים') + '". עריכת סטטוס והערות - בגיליון עצמו.', true);
-    }).catch(function (err) {
-      if (err.message !== 'no-password') showStatus('שגיאה: ' + err.message, false);
-    }).finally(done);
+    }).catch(function (err) { fail(err); }).finally(done);
   });
 
   /* ---------- חיבור GitHub ---------- */
   function renderGh(res) {
-    var el = $('gh-status');
-    el.textContent = (res.ok ? '✅ ' : '❌ ') + (res.message || (res.ok ? 'מחובר' : 'אין חיבור'));
-    el.style.color = res.ok ? '#0e7c5a' : '#c22733';
+    var e = $('gh-status');
+    e.textContent = (res.ok ? '✅ ' : '❌ ') + (res.message || (res.ok ? 'מחובר' : 'אין חיבור'));
+    e.style.color = res.ok ? '#0e7c5a' : '#c22733';
   }
-
   function checkGitHub() {
     api('checkGitHub').then(renderGh).catch(function (err) {
-      if (err.message !== 'no-password') $('gh-status').textContent = 'לא ניתן לבדוק את החיבור: ' + err.message;
+      if (err.message !== 'no-session') $('gh-status').textContent = 'לא ניתן לבדוק את החיבור: ' + err.message;
     });
   }
-
   $('btn-check-github').addEventListener('click', function () {
     var done = busy(this, 'בודק...');
     api('checkGitHub').then(renderGh).catch(function () {}).finally(done);
   });
-
   $('btn-save-token').addEventListener('click', function () {
     var token = $('gh-token').value.trim();
     if (!token) { showStatus('הדביקו טוקן קודם.', false); return; }
@@ -916,25 +1308,64 @@
       $('gh-token').value = '';
       showStatus(res.message, true);
       checkGitHub();
-    }).catch(function (err) {
-      if (err.message !== 'no-password') showStatus('שגיאה: ' + err.message, false);
-    }).finally(done);
+    }).catch(function (err) { fail(err); }).finally(done);
   });
 
-  $('btn-preview').addEventListener('click', function () {
-    var article = buildArticle();
-    if (!article) return;
-    var p = $('preview');
-    p.style.display = 'block';
-    p.querySelector('h3').textContent = article.title;
-    p.querySelector('.sub').textContent = article.subtitle;
-    p.querySelector('.body').innerHTML = article.body.split(/\n{2,}/).map(function (b) {
-      b = b.trim();
-      var div = document.createElement('div');
-      if (b.indexOf('## ') === 0) { div.innerHTML = '<h2></h2>'; div.firstChild.textContent = b.slice(3); }
-      else { div.innerHTML = '<p></p>'; div.firstChild.textContent = b; }
-      return div.innerHTML;
-    }).join('');
+  /* ---------- גישה + הרשאות שירותים ---------- */
+  function checkServices() {
+    api('checkServices').then(function (res) {
+      var box = $('svc-status');
+      box.innerHTML = '';
+      var items = [['sheets', 'Google Sheets (גיליונות)'], ['mail', 'Gmail (התראות במייל)'], ['drive', 'Drive (שיתוף גיליונות עם לקוחות)']];
+      var missing = false;
+      items.forEach(function (it) {
+        var st = res[it[0]] || {};
+        var line = el('div', (st.ok ? '✅ ' : '❌ ') + it[1] + (st.ok ? '' : ' - טרם אושר'));
+        line.style.color = st.ok ? '#0e7c5a' : '#c22733';
+        box.appendChild(line);
+        if (!st.ok) missing = true;
+      });
+      if (missing) {
+        var help = el('div', null, 'hint');
+        help.style.marginTop = '6px';
+        help.appendChild(document.createTextNode('אישור חד-פעמי של בעל הסקריפט: '));
+        var a = el('a', 'פתיחת העורך'); a.href = res.scriptUrl; a.target = '_blank'; a.rel = 'noopener';
+        help.appendChild(a);
+        help.appendChild(document.createTextNode(' ← בוחרים למעלה את הפונקציה authorizeServices ← Run ← Review permissions ← Allow. עד אז מיילים ושיתוף גיליונות לא יישלחו (הלידים עצמם נרשמים כרגיל).'));
+        box.appendChild(help);
+      }
+    }).catch(function (err) { if (err.message !== 'no-session') $('svc-status').textContent = 'לא ניתן לבדוק הרשאות: ' + err.message; });
+  }
+
+  function loadAccessSettings() {
+    api('getAccessSettings').then(function (res) {
+      if (!res.success) throw new Error(res.message);
+      $('ac-client').value = res.googleClientId || '';
+      $('ac-domain').value = res.allowedDomain || '';
+      $('ac-emails').value = res.allowedEmails || '';
+      if (res.origin) $('ac-origin').textContent = res.origin;
+      $('ac-disable-wrap').style.display = (res.passwordLogin && res.googleClientId && me && me.via === 'google') ? 'flex' : 'none';
+      $('ac-disable').checked = false;
+      var can = res.canManage !== false;
+      ['ac-client', 'ac-domain', 'ac-emails', 'btn-save-access'].forEach(function (id) { $(id).disabled = !can; });
+      if (!can) showStatus('הגדרות הגישה ניתנות לשינוי רק מחשבון ארגוני.', true);
+    }).catch(function (err) { fail(err, 'טעינת הגדרות הגישה נכשלה'); });
+  }
+
+  $('btn-save-access').addEventListener('click', function () {
+    var disable = $('ac-disable').checked;
+    if (disable && !confirm('לבטל את סיסמת הגיבוי? מעכשיו הכניסה תהיה רק עם חשבון גוגל מורשה.')) return;
+    var done = busy(this, 'שומר...');
+    api('saveAccessSettings', {
+      googleClientId: $('ac-client').value.trim(),
+      allowedDomain: $('ac-domain').value.trim(),
+      allowedEmails: $('ac-emails').value.trim(),
+      disablePassword: disable
+    }).then(function (res) {
+      if (!res.success) throw new Error(res.message);
+      showStatus(res.message + ($('ac-client').value.trim() ? ' כפתור הכניסה עם גוגל יופיע במסך הכניסה הבא.' : ''), true);
+      loadAccessSettings();
+    }).catch(function (err) { fail(err); }).finally(done);
   });
 })();
 </script>

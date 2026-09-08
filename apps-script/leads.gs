@@ -7,6 +7,14 @@
  * הגדרות לידים (Script Properties, נערכות מפאנל הניהול -> "לידים"):
  *   NOTIFY_EMAIL     - מייל שמקבל התראה על כל ליד (ריק = בלי)
  *   FORWARD_WEBHOOKS - כתובות https (מופרדות בשורה/פסיק) שכל ליד נשלח אליהן כ-JSON (CRM / Make / Zapier)
+ * גישה לפאנל (Script Properties, נערכות מהפאנל -> "גישה"):
+ *   GOOGLE_CLIENT_ID - OAuth Client ID (Web) לכפתור "כניסה עם גוגל"
+ *   ALLOWED_DOMAIN   - דומיין ארגוני שנכנס אוטומטית (ברירת מחדל 42creative.co.il)
+ *   ALLOWED_EMAILS   - חשבונות נוספים שמורשים (מופרדים בשורה/פסיק)
+ *   ADMIN_PASSWORD   - סיסמת גיבוי (אופציונלי; אפשר למחוק כשכניסת גוגל עובדת)
+ * לקוחות וקמפיינים נרשמים בטאבים "לקוחות" ו"קמפיינים" בגיליון הראשי. לכל לקוח גיליון משלו,
+ * לכל קמפיין טאב בגיליון של הלקוח; כל ליד נרשם גם בטאב הראשי "לידים".
+ * הרשאות: אחרי הוספת שירות חדש (DriveApp, MailApp) בעל הסקריפט מריץ פעם אחת authorizeServices() בעורך.
  *
  * חשוב: אחרי כל שינוי בקוד יש לבצע Deploy -> Manage deployments ->
  * Edit -> New version -> Deploy (אחרת הכתובת החיה לא מתעדכנת!)
@@ -24,7 +32,7 @@ var IMAGE_MODELS = ['gemini-3.1-flash-image-preview', 'gemini-2.5-flash-image', 
 /* עמודות הגיליון. עמודות חדשות מתווספות בסוף אוטומטית לגיליון קיים (ensureHeaders) */
 var HEADERS = [
   'תאריך', 'שעה', 'שם מלא', 'טלפון', 'דוא"ל', 'עיר',
-  'כתבה', 'קמפיין', 'עמוד',
+  'כתבה', 'קמפיין', 'לקוח', 'עמוד',
   'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term',
   'סטטוס', 'הערות', 'מזהה ליד', 'מזהה קליק', 'כתובת מלאה', 'דגלים', 'העברה', 'יעד'
 ];
@@ -56,29 +64,37 @@ function doGet(e) {
 function doPost(e) {
   try {
     var req = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+    var props = PropertiesService.getScriptProperties();
 
-    /* לידים מהאתר - ציבורי, בלי סיסמה (POST כ-text/plain כדי לעקוף preflight של CORS) */
+    /* פעולות ציבוריות - בלי התחברות */
     if (req.action === 'addLead') return addLead(req);
     if (req.action === 'ping') return jsonResponse({ success: true, message: 'pong' });
+    if (req.action === 'getPublicConfig') return getPublicConfig(props);
+    if (req.action === 'login') return login(req, props);
 
-    var props = PropertiesService.getScriptProperties();
-    var pass = props.getProperty('ADMIN_PASSWORD');
-    if (!pass || req.password !== pass) {
-      return jsonResponse({ success: false, message: 'סיסמת ניהול שגויה' });
-    }
+    /* כל השאר דורש התחברות: session מכניסה עם גוגל, או סיסמת הגיבוי */
+    var user = authenticate(req, props);
+    if (!user) return jsonResponse({ success: false, code: 'unauthorized', message: 'לא מחובר - יש להיכנס מחדש' });
+
     switch (req.action) {
+      case 'logout':
+        return logout(req);
+      case 'checkAuth':
+        return jsonResponse({ success: true, message: 'מחובר', email: user.email, name: user.name || '', via: user.via });
       case 'generateArticle':
         return generateArticle(req, props);
       case 'publishArticle':
-        return saveArticle(req, props, false);
+        return saveArticle(req, props, false, user);
       case 'updateArticle':
-        return saveArticle(req, props, true);
+        return saveArticle(req, props, true, user);
+      case 'deleteArticle':
+        return deleteArticle(req, props, user);
       case 'getArticles':
         return getArticles(props);
       case 'getArticle':
         return getArticle(req, props);
       case 'promoteArticle':
-        return promoteArticle(req, props);
+        return promoteArticle(req, props, user);
       case 'uploadImage':
         return uploadImage(req, props);
       case 'generateImage':
@@ -89,6 +105,18 @@ function doPost(e) {
       }
       case 'saveGitHubToken':
         return saveGitHubToken(req, props);
+      case 'checkServices':
+        return jsonResponse(Object.assign({ success: true, scriptUrl: SCRIPT_EDIT_URL }, checkServices()));
+      case 'getAccessSettings':
+        return getAccessSettings(props, user);
+      case 'saveAccessSettings':
+        return saveAccessSettings(req, props, user);
+      case 'getClients':
+        return jsonResponse(Object.assign({ success: true }, getRegistry(true)));
+      case 'saveClient':
+        return saveClient(req, user);
+      case 'saveCampaign':
+        return saveCampaign(req, user);
       case 'getLeadSettings':
         return getLeadSettings(props);
       case 'saveLeadSettings':
@@ -99,14 +127,165 @@ function doPost(e) {
         return getRecentLeads(req);
       case 'deleteTestLeads':
         return deleteTestLeads();
-      case 'checkAuth':
-        return jsonResponse({ success: true, message: 'הסיסמה תקינה' });
       default:
         return jsonResponse({ success: false, message: 'פעולה לא מוכרת' });
     }
   } catch (err) {
     return jsonResponse({ success: false, message: err.toString() });
   }
+}
+
+/* ---------- התחברות: גוגל (חשבון ארגוני / מורשים) + סיסמת גיבוי ---------- */
+var DEFAULT_ALLOWED_DOMAIN = '42creative.co.il';
+var SESSION_TTL_SEC = 21600; // 6 שעות - המקסימום של CacheService
+var SCRIPT_EDIT_URL = 'https://script.google.com/d/1_zMcYV7qG2PVnFn7wTGPGXZXBViA9ezLzj_cKGfigMnruHAWC8QiEZvI/edit';
+
+function allowedDomain(props) {
+  return (props.getProperty('ALLOWED_DOMAIN') || DEFAULT_ALLOWED_DOMAIN).toLowerCase();
+}
+
+function allowedEmails(props) {
+  return splitList((props.getProperty('ALLOWED_EMAILS') || '').toLowerCase());
+}
+
+function emailDomain(email) {
+  email = String(email || '').toLowerCase();
+  return email.slice(email.indexOf('@') + 1);
+}
+
+/** הגדרות שהמסך הנעול צריך לפני התחברות - בלי סודות */
+function getPublicConfig(props) {
+  return jsonResponse({
+    success: true,
+    googleClientId: props.getProperty('GOOGLE_CLIENT_ID') || '',
+    allowedDomain: allowedDomain(props),
+    passwordLogin: Boolean(props.getProperty('ADMIN_PASSWORD'))
+  });
+}
+
+function isAllowedUser(email, props) {
+  email = String(email || '').toLowerCase();
+  if (!email) return false;
+  if (emailDomain(email) === allowedDomain(props)) return true;
+  return allowedEmails(props).indexOf(email) > -1;
+}
+
+/** אימות ID token של גוגל מול tokeninfo: חתימה, תוקף, ושהוא הונפק לפאנל שלנו (aud = Client ID) */
+function verifyGoogleIdToken(idToken, props) {
+  var clientId = props.getProperty('GOOGLE_CLIENT_ID') || '';
+  if (!clientId) return { ok: false, message: 'לא הוגדר Google Client ID בהגדרות הגישה' };
+  var res = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idToken), { muteHttpExceptions: true });
+  if (res.getResponseCode() !== 200) return { ok: false, message: 'האסימון של גוגל לא תקף או פג - נסו להתחבר שוב' };
+  var info = JSON.parse(res.getContentText());
+  if (info.aud !== clientId) return { ok: false, message: 'האסימון לא הונפק לפאנל הזה (Client ID לא תואם)' };
+  if (String(info.email_verified) !== 'true') return { ok: false, message: 'כתובת המייל בחשבון גוגל אינה מאומתת' };
+  if (info.iss !== 'accounts.google.com' && info.iss !== 'https://accounts.google.com') return { ok: false, message: 'מנפיק לא מוכר' };
+  return { ok: true, email: String(info.email).toLowerCase(), name: info.name || '', picture: info.picture || '', hd: info.hd || '' };
+}
+
+function createSession(user) {
+  var token = Utilities.getUuid() + '-' + Utilities.getUuid();
+  CacheService.getScriptCache().put('sess:' + token, JSON.stringify(user), SESSION_TTL_SEC);
+  return token;
+}
+
+function login(req, props) {
+  if (req.idToken) {
+    var v = verifyGoogleIdToken(String(req.idToken), props);
+    if (!v.ok) return jsonResponse({ success: false, message: v.message });
+    if (!isAllowedUser(v.email, props)) {
+      return jsonResponse({
+        success: false,
+        message: 'החשבון ' + v.email + ' לא מורשה לפאנל. חשבון ארגוני של ' + allowedDomain(props) + ' נכנס אוטומטית; חשבון אחר צריך להתווסף לרשימת המורשים בבלוק "גישה".'
+      });
+    }
+    var user = { email: v.email, name: v.name, picture: v.picture, via: 'google' };
+    return jsonResponse({ success: true, session: createSession(user), email: user.email, name: user.name, picture: user.picture, via: 'google', expiresIn: SESSION_TTL_SEC });
+  }
+  var pass = props.getProperty('ADMIN_PASSWORD');
+  if (pass && req.password && req.password === pass) {
+    var u = { email: 'סיסמת גיבוי', name: 'סיסמת גיבוי', via: 'password' };
+    return jsonResponse({ success: true, session: createSession(u), email: u.email, name: u.name, via: 'password', expiresIn: SESSION_TTL_SEC });
+  }
+  return jsonResponse({ success: false, message: req.password ? 'סיסמת הגיבוי שגויה' : 'חסר אסימון התחברות' });
+}
+
+/** מחזיר את המשתמש המחובר לפי session (או סיסמת גיבוי ישירה, לכלים אוטומטיים), אחרת null */
+function authenticate(req, props) {
+  if (req.session) {
+    var raw = CacheService.getScriptCache().get('sess:' + String(req.session));
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch (e) { return null; }
+  }
+  var pass = props.getProperty('ADMIN_PASSWORD');
+  if (pass && req.password && req.password === pass) return { email: 'סיסמת גיבוי', name: 'סיסמת גיבוי', via: 'password' };
+  return null;
+}
+
+function logout(req) {
+  if (req.session) CacheService.getScriptCache().remove('sess:' + String(req.session));
+  return jsonResponse({ success: true, message: 'התנתקת' });
+}
+
+/** שינוי הגדרות גישה: רק חשבון ארגוני (או סיסמת הגיבוי) */
+function canManageAccess(user, props) {
+  if (!user) return false;
+  if (user.via === 'password') return true;
+  return emailDomain(user.email) === allowedDomain(props);
+}
+
+function getAccessSettings(props, user) {
+  return jsonResponse({
+    success: true,
+    googleClientId: props.getProperty('GOOGLE_CLIENT_ID') || '',
+    allowedDomain: allowedDomain(props),
+    allowedEmails: allowedEmails(props).join('\n'),
+    passwordLogin: Boolean(props.getProperty('ADMIN_PASSWORD')),
+    canManage: canManageAccess(user, props),
+    via: user.via,
+    origin: SITE_BASE.replace(/^(https?:\/\/[^\/]+).*$/, '$1')
+  });
+}
+
+function saveAccessSettings(req, props, user) {
+  if (!canManageAccess(user, props)) return jsonResponse({ success: false, message: 'רק חשבון ארגוני יכול לשנות הגדרות גישה' });
+  var clientId = String(req.googleClientId || '').trim();
+  if (clientId && !/^[\w-]+\.apps\.googleusercontent\.com$/.test(clientId)) {
+    return jsonResponse({ success: false, message: 'Client ID לא תקין - צריך להיגמר ב-.apps.googleusercontent.com' });
+  }
+  var domain = String(req.allowedDomain || '').trim().toLowerCase().replace(/^@/, '');
+  if (domain && !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain)) return jsonResponse({ success: false, message: 'דומיין לא תקין' });
+  var emails = splitList(String(req.allowedEmails || '').toLowerCase());
+  for (var i = 0; i < emails.length; i++) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emails[i])) return jsonResponse({ success: false, message: 'מייל לא תקין: ' + emails[i] });
+  }
+  props.setProperty('GOOGLE_CLIENT_ID', clientId);
+  props.setProperty('ALLOWED_DOMAIN', domain || DEFAULT_ALLOWED_DOMAIN);
+  props.setProperty('ALLOWED_EMAILS', emails.join('\n'));
+  if (req.disablePassword === true) {
+    if (!clientId) return jsonResponse({ success: false, message: 'אי אפשר לבטל את סיסמת הגיבוי לפני שכניסת גוגל מוגדרת' });
+    if (user.via !== 'google') return jsonResponse({ success: false, message: 'כדי לבטל את סיסמת הגיבוי יש להיכנס קודם עם גוגל (כך נדע שזה עובד)' });
+    props.deleteProperty('ADMIN_PASSWORD');
+  }
+  return jsonResponse({ success: true, message: 'הגדרות הגישה נשמרו' });
+}
+
+/** אילו שירותים כבר מורשים לסקריפט (בעל הסקריפט מאשר פעם אחת דרך authorizeServices בעורך) */
+function checkServices() {
+  var out = {};
+  try { MailApp.getRemainingDailyQuota(); out.mail = { ok: true }; } catch (e) { out.mail = { ok: false, message: String(e) }; }
+  try { DriveApp.getRootFolder().getName(); out.drive = { ok: true }; } catch (e) { out.drive = { ok: false, message: String(e) }; }
+  try { SpreadsheetApp.openById(SHEET_ID).getName(); out.sheets = { ok: true }; } catch (e) { out.sheets = { ok: false, message: String(e) }; }
+  return out;
+}
+
+/** להרצה ידנית פעם אחת בעורך (Run) - מבקש את כל ההרשאות שהסקריפט צריך */
+function authorizeServices() {
+  SpreadsheetApp.openById(SHEET_ID).getName();
+  UrlFetchApp.fetch('https://api.github.com', { muteHttpExceptions: true });
+  MailApp.getRemainingDailyQuota();
+  DriveApp.getRootFolder().getName();
+  Logger.log('כל השירותים מורשים');
 }
 
 /* ---------- עזרי GitHub ---------- */
@@ -246,13 +425,36 @@ function getArticles(props) {
 
   var pick = function (type) {
     return function (a) {
-      return { id: a.id, title: a.title, category: a.category, date: a.date, type: type };
+      return {
+        id: a.id, title: a.title, category: a.category, date: a.date, type: type,
+        createdAt: a.createdAt || a.date || '',
+        createdBy: a.createdBy || (type === 'rss' ? 'אוטומטי (RSS)' : ''),
+        createdVia: a.createdVia || (type === 'rss' ? 'rss' : (a.promotedFrom ? 'promoted' : '')),
+        updatedAt: a.updatedAt || '',
+        updatedBy: a.updatedBy || '',
+        imageSource: imageSourceOf(a.image),
+        featured: Boolean(a.featured),
+        lead: a.lead && a.lead.enabled ? { campaignId: a.lead.campaignId || '', clientId: a.lead.clientId || '', campaign: a.lead.campaign || '' } : null,
+        url: SITE_BASE + '/articles/' + a.id + '.html'
+      };
     };
   };
   return jsonResponse({
     success: true,
     articles: manual.articles.map(pick('manual')).concat(rss.articles.map(pick('rss')))
   });
+}
+
+/** מקור התמונה לפי הכתובת שלה - לתצוגה בטבלת הכתבות */
+function imageSourceOf(url) {
+  var u = String(url || '');
+  if (!u) return 'אין';
+  if (u.indexOf('/uploads/gen-') > -1) return 'AI';
+  if (u.indexOf('/uploads/up-') > -1) return 'העלאה';
+  if (u.indexOf('/uploads/perm-') > -1) return 'AI (מ-RSS)';
+  if (u.indexOf('/rss-img/') > -1) return 'AI (RSS)';
+  if (u.indexOf('/img/cat-') > -1) return 'ברירת מחדל';
+  return 'קישור חיצוני';
 }
 
 function getArticle(req, props) {
@@ -278,7 +480,7 @@ function findIndexById(articles, id) {
   return -1;
 }
 
-function saveArticle(req, props, isUpdate) {
+function saveArticle(req, props, isUpdate, user) {
   var token = requireToken(props);
   var article = req.article;
   if (!article || !article.id || !article.title || !article.body) {
@@ -300,18 +502,27 @@ function saveArticle(req, props, isUpdate) {
     var target = manualIdx !== -1 ? manual : (rssIdx !== -1 ? rss : null);
     var idx = manualIdx !== -1 ? manualIdx : rssIdx;
     if (!target) return jsonResponse({ success: false, message: 'הכתבה לעדכון לא נמצאה' });
-    article.date = target.articles[idx].date; // שומרים את תאריך הפרסום המקורי
+    var prev = target.articles[idx];
+    article.date = prev.date; // שומרים את תאריך הפרסום המקורי
+    article.createdAt = prev.createdAt || prev.date || '';
+    article.createdBy = prev.createdBy || '';
+    article.createdVia = prev.createdVia || (target === rss ? 'rss' : (prev.promotedFrom ? 'promoted' : 'manual'));
+    if (prev.promotedFrom) { article.promotedFrom = prev.promotedFrom; article.promotedAt = prev.promotedAt; article.promotedBy = prev.promotedBy; }
     article.updatedAt = new Date().toISOString();
+    article.updatedBy = user ? user.email : '';
     target.articles[idx] = article;
-    if (!writeJsonFile(token, target, 'עדכון כתבה: ' + article.title)) {
+    if (!writeJsonFile(token, target, 'עדכון כתבה: ' + article.title + ' (' + (user ? user.email : '') + ')')) {
       return jsonResponse({ success: false, message: 'השמירה לגיטהאב נכשלה' + ghDetail() });
     }
   } else {
     if (manualIdx !== -1 || rssIdx !== -1) {
       return jsonResponse({ success: false, message: 'כבר קיימת כתבה עם המזהה "' + article.id + '" - בחרו מזהה אחר' });
     }
+    article.createdAt = new Date().toISOString();
+    article.createdBy = user ? user.email : '';
+    article.createdVia = req.origin === 'ai' ? 'ai' : 'manual';
     manual.articles.unshift(article);
-    if (!writeJsonFile(token, manual, 'כתבה חדשה: ' + article.title)) {
+    if (!writeJsonFile(token, manual, 'כתבה חדשה: ' + article.title + ' (' + (user ? user.email : '') + ')')) {
       return jsonResponse({ success: false, message: 'השמירה לגיטהאב נכשלה' + ghDetail() });
     }
   }
@@ -325,7 +536,7 @@ function saveArticle(req, props, isUpdate) {
 }
 
 /* ---------- הפיכת כתבת RSS לכתבה קבועה ---------- */
-function promoteArticle(req, props) {
+function promoteArticle(req, props, user) {
   var token = requireToken(props);
   if (!req.id) return jsonResponse({ success: false, message: 'חסר מזהה כתבה' });
 
@@ -363,6 +574,10 @@ function promoteArticle(req, props) {
   promoted.id = newId;
   promoted.promotedFrom = article.id;
   promoted.promotedAt = new Date().toISOString();
+  promoted.promotedBy = user ? user.email : '';
+  promoted.createdAt = new Date().toISOString();
+  promoted.createdBy = user ? user.email : '';
+  promoted.createdVia = 'promoted';
 
   /* התמונה יושבת ב-assets/rss-img ונמחקת בסבב הבא - מעתיקים אותה ל-uploads */
   if (promoted.image && promoted.image.indexOf('/assets/rss-img/') > -1) {
@@ -399,6 +614,22 @@ function promoteArticle(req, props) {
     id: newId,
     url: SITE_BASE + '/articles/' + newId + '.html'
   });
+}
+
+/* ---------- מחיקת כתבה קבועה (כתבות RSS מתחלפות לבד) ---------- */
+function deleteArticle(req, props, user) {
+  var token = requireToken(props);
+  if (!req.id) return jsonResponse({ success: false, message: 'חסר מזהה כתבה' });
+  var manual = readJsonFile(token, ARTICLES_PATH);
+  if (!manual) return jsonResponse({ success: false, message: 'קריאת הכתבות נכשלה' + ghDetail() });
+  var idx = findIndexById(manual.articles, req.id);
+  if (idx === -1) return jsonResponse({ success: false, message: 'הכתבה לא נמצאה בכתבות הקבועות (כתבת RSS מתחלפת לבד בסבב היומי)' });
+  var removed = manual.articles.splice(idx, 1)[0];
+  if (!writeJsonFile(token, manual, 'מחיקת כתבה: ' + removed.title + ' (' + (user ? user.email : '') + ')')) {
+    return jsonResponse({ success: false, message: 'המחיקה נכשלה' + ghDetail() });
+  }
+  clearRoutingCache();
+  return jsonResponse({ success: true, message: 'הכתבה "' + removed.title + '" נמחקה. האתר ייבנה מחדש תוך כמה דקות.' });
 }
 
 /* ---------- העלאת תמונה ---------- */
@@ -521,6 +752,188 @@ function generateArticle(req, props) {
   return jsonResponse({ success: true, title: out.title, subtitle: out.subtitle || '', body: out.body });
 }
 
+/* ---------- לקוחות וקמפיינים: רישום בטאבים "לקוחות" ו"קמפיינים" בגיליון הראשי ---------- */
+var CLIENTS_TAB = 'לקוחות';
+var CAMPAIGNS_TAB = 'קמפיינים';
+var CLIENT_HEADERS = ['מזהה', 'שם', 'מזהה גיליון', 'קישור לגיליון', 'מיילים להתראה', 'webhooks', 'שותף עם', 'נוצר', 'נוצר על ידי'];
+var CAMPAIGN_HEADERS = ['מזהה', 'מזהה לקוח', 'שם', 'טאב בגיליון', 'מיילים להתראה', 'webhooks', 'נוצר', 'נוצר על ידי'];
+var CLIENT_ALL_TAB = 'כל הלידים';
+var REGISTRY_CACHE_KEY = 'registry-v1';
+var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function registrySheet(ss, name, headers) {
+  var sh = ss.getSheetByName(name);
+  if (!sh) {
+    sh = ss.insertSheet(name);
+    sh.appendRow(headers);
+    sh.getRange(1, 1, 1, headers.length).setFontWeight('bold');
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+function readRegistryRows(sh, headers) {
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+  return sh.getRange(2, 1, lastRow - 1, headers.length).getValues().map(function (r) {
+    var o = {};
+    headers.forEach(function (h, i) { o[h] = String(r[i] == null ? '' : r[i]).trim(); });
+    return o;
+  }).filter(function (o) { return o['מזהה']; });
+}
+
+/** { clients: {id: {...}}, campaigns: {id: {...}} } - במטמון 5 דקות (fresh=true קורא מהגיליון) */
+function getRegistry(fresh) {
+  var cache = CacheService.getScriptCache();
+  if (!fresh) {
+    var cached = cache.get(REGISTRY_CACHE_KEY);
+    if (cached) { try { return JSON.parse(cached); } catch (e) { /* נקרא מחדש */ } }
+  }
+  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var clients = {};
+  readRegistryRows(registrySheet(ss, CLIENTS_TAB, CLIENT_HEADERS), CLIENT_HEADERS).forEach(function (r) {
+    clients[r['מזהה']] = {
+      id: r['מזהה'], name: r['שם'], sheetId: r['מזהה גיליון'], sheetUrl: r['קישור לגיליון'],
+      emails: splitList(r['מיילים להתראה']), webhooks: splitList(r['webhooks']), sharedWith: r['שותף עם'],
+      createdAt: r['נוצר'], createdBy: r['נוצר על ידי']
+    };
+  });
+  var campaigns = {};
+  readRegistryRows(registrySheet(ss, CAMPAIGNS_TAB, CAMPAIGN_HEADERS), CAMPAIGN_HEADERS).forEach(function (r) {
+    campaigns[r['מזהה']] = {
+      id: r['מזהה'], clientId: r['מזהה לקוח'], name: r['שם'], tab: r['טאב בגיליון'] || r['שם'],
+      emails: splitList(r['מיילים להתראה']), webhooks: splitList(r['webhooks']),
+      createdAt: r['נוצר'], createdBy: r['נוצר על ידי']
+    };
+  });
+  var reg = { clients: clients, campaigns: campaigns };
+  try { cache.put(REGISTRY_CACHE_KEY, JSON.stringify(reg), 300); } catch (e) { /* גדול מדי למטמון - ייקרא כל פעם */ }
+  return reg;
+}
+
+function clearRegistryCache() {
+  try { CacheService.getScriptCache().remove(REGISTRY_CACHE_KEY); } catch (e) { /* לא קריטי */ }
+}
+
+function newId(prefix) {
+  return prefix + '-' + new Date().getTime().toString(36);
+}
+
+function extractSheetId(v) {
+  var str = String(v || '').trim();
+  var m = str.match(/\/spreadsheets\/d\/([A-Za-z0-9_-]{20,})/);
+  if (m) return m[1];
+  return /^[A-Za-z0-9_-]{20,}$/.test(str) ? str : '';
+}
+
+function validateEmails(list) {
+  for (var i = 0; i < list.length; i++) if (!EMAIL_RE.test(list[i])) return 'מייל לא תקין: ' + list[i];
+  return '';
+}
+
+function validateHooks(list) {
+  for (var i = 0; i < list.length; i++) if (!/^https:\/\/\S+$/.test(list[i])) return 'webhook לא תקין (חייב https): ' + list[i];
+  return '';
+}
+
+/** יצירה/עדכון לקוח. בלי גיליון קיים - נוצר גיליון חדש בדרייב של בעל הסקריפט ומשותף עם המיילים שצוינו */
+function saveClient(req, user) {
+  var name = String(req.name || '').trim();
+  if (!name) return jsonResponse({ success: false, message: 'חסר שם לקוח' });
+  var emails = splitList(req.notifyEmail);
+  var hooks = splitList(req.webhooks);
+  var shareWith = splitList(req.shareWith);
+  var bad = validateEmails(emails) || validateHooks(hooks) || validateEmails(shareWith);
+  if (bad) return jsonResponse({ success: false, message: bad });
+
+  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var sh = registrySheet(ss, CLIENTS_TAB, CLIENT_HEADERS);
+  var rows = readRegistryRows(sh, CLIENT_HEADERS);
+  var id = String(req.id || '').trim();
+  var existing = null, rowIndex = -1;
+  rows.forEach(function (r, k) { if (id && r['מזהה'] === id) { existing = r; rowIndex = k + 2; } });
+
+  var sheetId = extractSheetId(req.sheetUrl) || (existing ? existing['מזהה גיליון'] : '');
+  var created = false;
+  if (!sheetId) {
+    var clientSs = SpreadsheetApp.create('לידים - ' + name);
+    sheetId = clientSs.getId();
+    var first = clientSs.getSheets()[0];
+    first.setName(CLIENT_ALL_TAB);
+    first.appendRow(HEADERS);
+    first.getRange(1, 1, 1, HEADERS.length).setFontWeight('bold');
+    first.setFrozenRows(1);
+    applyStatusValidation(first, HEADERS);
+    created = true;
+  } else {
+    try { SpreadsheetApp.openById(sheetId).getName(); } catch (e) { return jsonResponse({ success: false, message: 'אין גישה לגיליון הזה: ' + sheetId }); }
+  }
+  var sheetUrl = 'https://docs.google.com/spreadsheets/d/' + sheetId;
+
+  var shared = [], shareError = '';
+  if (shareWith.length) {
+    try {
+      var file = DriveApp.getFileById(sheetId);
+      shareWith.forEach(function (em) {
+        try { file.addEditor(em); shared.push(em); } catch (e) { shareError = String(e); }
+      });
+    } catch (e) {
+      shareError = 'אין הרשאת Drive לסקריפט - יש להריץ authorizeServices בעורך, או לשתף ידנית';
+    }
+  }
+  var sharedAll = splitList((existing ? existing['שותף עם'] : '') + ' ' + shared.join(' '))
+    .filter(function (x, k, arr) { return arr.indexOf(x) === k; });
+
+  if (!id) id = newId('c');
+  var row = [id, name, sheetId, sheetUrl, emails.join(', '), hooks.join(' '), sharedAll.join(', '),
+    existing ? existing['נוצר'] : Utilities.formatDate(new Date(), 'Asia/Jerusalem', 'dd/MM/yyyy HH:mm'),
+    existing ? existing['נוצר על ידי'] : (user ? user.email : '')];
+  if (rowIndex > 0) sh.getRange(rowIndex, 1, 1, row.length).setValues([row]); else sh.appendRow(row);
+  clearRegistryCache();
+
+  var msg = created ? 'הלקוח נוצר ונפתח לו גיליון לידים חדש' : 'הלקוח נשמר';
+  if (shared.length) msg += '. הגיליון שותף עם ' + shared.join(', ');
+  if (shareError) msg += '. שיתוף לא הושלם: ' + shareError;
+  return jsonResponse({ success: true, message: msg, id: id, sheetUrl: sheetUrl, shared: shared });
+}
+
+/** יצירה/עדכון קמפיין תחת לקוח. הטאב בגיליון של הלקוח נפתח מיד */
+function saveCampaign(req, user) {
+  var name = String(req.name || '').trim();
+  var clientId = String(req.clientId || '').trim();
+  if (!name || !clientId) return jsonResponse({ success: false, message: 'חסר שם קמפיין או לקוח' });
+  var reg = getRegistry(true);
+  var client = reg.clients[clientId];
+  if (!client) return jsonResponse({ success: false, message: 'לקוח לא נמצא' });
+  var emails = splitList(req.notifyEmail);
+  var hooks = splitList(req.webhooks);
+  var bad = validateEmails(emails) || validateHooks(hooks);
+  if (bad) return jsonResponse({ success: false, message: bad });
+  var tab = sanitizeTabName(req.tab || name) || 'קמפיין';
+
+  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var sh = registrySheet(ss, CAMPAIGNS_TAB, CAMPAIGN_HEADERS);
+  var rows = readRegistryRows(sh, CAMPAIGN_HEADERS);
+  var id = String(req.id || '').trim();
+  var existing = null, rowIndex = -1;
+  rows.forEach(function (r, k) { if (id && r['מזהה'] === id) { existing = r; rowIndex = k + 2; } });
+  if (!id) id = newId('k');
+
+  try { ensureSheetIn(SpreadsheetApp.openById(client.sheetId), tab); }
+  catch (e) { return jsonResponse({ success: false, message: 'לא ניתן לפתוח טאב בגיליון של הלקוח: ' + e }); }
+
+  var row = [id, clientId, name, tab, emails.join(', '), hooks.join(' '),
+    existing ? existing['נוצר'] : Utilities.formatDate(new Date(), 'Asia/Jerusalem', 'dd/MM/yyyy HH:mm'),
+    existing ? existing['נוצר על ידי'] : (user ? user.email : '')];
+  if (rowIndex > 0) sh.getRange(rowIndex, 1, 1, row.length).setValues([row]); else sh.appendRow(row);
+  clearRegistryCache();
+  return jsonResponse({
+    success: true,
+    message: 'הקמפיין נשמר. הלידים שלו ייכנסו לטאב "' + tab + '" בגיליון של ' + client.name + ' (וגם לטאב הראשי)',
+    id: id, tab: tab, sheetUrl: client.sheetUrl
+  });
+}
+
 /* ---------- לידים ---------- */
 /**
  * קליטת ליד מהאתר. מגיע כ-POST JSON (ברירת מחדל) או כ-GET (תאימות לאחור).
@@ -576,9 +989,17 @@ function addLead(p) {
     'העברה': ''
   };
 
-  /* ניתוב לפי כתבה: טאב משלה + מייל + webhooks (מוגדר בפאנל בתוך הכתבה, נקרא מ-data/articles.json) */
+  /* ניתוב: כתבה -> קמפיין -> לקוח (הגיליון של הלקוח). הקמפיין נקרא מ-data/articles.json, הלקוח מרישום הלקוחות */
   var routing = getLeadRouting(str(p.article));
-  row['יעד'] = routing.tab;
+  var forcedCampaign = '';
+  if (p._campaignId && p._nonce && cache.get('testnonce:' + String(p._nonce))) forcedCampaign = String(p._campaignId); // ליד בדיקה לקמפיין מהפאנל
+  var reg = getRegistry(false);
+  var campaign = (forcedCampaign || routing.campaignId) ? reg.campaigns[forcedCampaign || routing.campaignId] : null;
+  var client = campaign ? reg.clients[campaign.clientId] : null;
+  if (campaign) row['קמפיין'] = campaign.name;
+  if (client) row['לקוח'] = client.name;
+  var legacyTab = (!client && routing.tab && routing.tab !== SHEET_NAME) ? routing.tab : '';
+  row['יעד'] = client ? client.name + ' / ' + (campaign.tab || campaign.name) : (legacyTab || SHEET_NAME);
 
   /* שדות מותאמים של הטופס (למשל "תקציב" או "סוג נכס"): עמודה לפי הטקסט של השדה, רק לשדות שהוגדרו בכתבה */
   var extras = [];
@@ -594,20 +1015,31 @@ function addLead(p) {
     extras.push([f.label, v]);
   });
 
-  /* כתיבה לגיליון תחת נעילה - כמה לידים באותה שנייה לא דורסים זה את זה.
-     כל ליד נרשם בטאב הראשי (תמונה מלאה לסוכנות) וגם בטאב של הכתבה (ללקוח) */
+  /* כתיבה תחת נעילה - כמה לידים באותה שנייה לא דורסים זה את זה.
+     כל ליד נרשם בטאב הראשי "לידים" (תמונה מלאה לסוכנות), ואם יש לקוח - גם בגיליון של הלקוח:
+     בטאב "כל הלידים" ובטאב של הקמפיין */
   var lock = LockService.getScriptLock();
   var locked = lock.tryLock(15000);
   var targets = [];
+  var writeErrors = [];
+  var appendTo = function (ss, tabName) {
+    var sheet = ensureSheetIn(ss, tabName);
+    var headers = ensureHeaders(sheet, extraHeaders);
+    sheet.appendRow(headers.map(function (h) { return row.hasOwnProperty(h) ? row[h] : ''; }));
+    targets.push({ sheet: sheet, headers: headers, rowIndex: sheet.getLastRow() });
+  };
   try {
-    var ss = SpreadsheetApp.openById(SHEET_ID);
-    var tabs = [SHEET_NAME];
-    if (routing.tab && routing.tab !== SHEET_NAME) tabs.push(routing.tab);
-    for (var t = 0; t < tabs.length; t++) {
-      var sheet = ensureSheetIn(ss, tabs[t]);
-      var headers = ensureHeaders(sheet, extraHeaders);
-      sheet.appendRow(headers.map(function (h) { return row.hasOwnProperty(h) ? row[h] : ''; }));
-      targets.push({ sheet: sheet, headers: headers, rowIndex: sheet.getLastRow() });
+    var master = SpreadsheetApp.openById(SHEET_ID);
+    appendTo(master, SHEET_NAME);
+    if (legacyTab) appendTo(master, legacyTab);
+    if (client && client.sheetId) {
+      try {
+        var clientSs = SpreadsheetApp.openById(client.sheetId);
+        appendTo(clientSs, CLIENT_ALL_TAB);
+        appendTo(clientSs, campaign.tab || campaign.name);
+      } catch (err) {
+        writeErrors.push('הגיליון של הלקוח ' + client.name + ': ' + err);
+      }
     }
   } finally {
     if (locked) lock.releaseLock();
@@ -617,17 +1049,27 @@ function addLead(p) {
   if (phone) cache.put('phone:' + phone, '1', 86400);
 
   /* העברה ל-webhooks (כלליים + של הכתבה) והתראה במייל (כללי + של הכתבה). כישלון שם לא מכשיל את הליד */
-  var forwarded = forwardLead(row, flags, routing, extras);
+  var route = {
+    emails: [].concat(client ? client.emails : [], campaign ? campaign.emails : [], routing.emails || []),
+    webhooks: [].concat(client ? client.webhooks : [], campaign ? campaign.webhooks : [], routing.webhooks || [])
+  };
+  var forwarded = forwardLead(row, flags, route, extras);
   if (forwarded) {
     for (var k = 0; k < targets.length; k++) {
       var col = targets[k].headers.indexOf('העברה') + 1;
       if (col > 0) targets[k].sheet.getRange(targets[k].rowIndex, col).setValue(forwarded);
     }
   }
-  var notified = notifyLead(row, flags, routing, extras);
+  var notified = notifyLead(row, flags, route, extras);
 
   var out = { success: true, message: 'הליד נקלט', leadId: leadId };
-  if (p.test) out.routing = { tab: routing.tab, emails: notified, forwarded: forwarded };
+  if (writeErrors.length) out.warning = writeErrors.join(' | ');
+  if (p.test) {
+    out.routing = {
+      tab: row['יעד'], client: client ? client.name : '', campaign: campaign ? campaign.name : '',
+      clientSheetUrl: client ? client.sheetUrl : '', emails: notified, forwarded: forwarded, warning: out.warning || ''
+    };
+  }
   return jsonResponse(out);
 }
 
@@ -701,6 +1143,7 @@ function leadPayload(row, flags, extras) {
     city: row['עיר'],
     article: row['כתבה'],
     campaign: row['קמפיין'],
+    client: row['לקוח'] || '',
     page: row['עמוד'],
     pageUrl: row['כתובת מלאה'],
     utm_source: row['utm_source'],
@@ -765,7 +1208,7 @@ function notifyLead(row, flags, routing, extras) {
       'ליד חדש: ' + (row['שם מלא'] || phone) + (row['קמפיין'] ? ' - ' + row['קמפיין'] : '');
     var lines = [
       ['שם', row['שם מלא']], ['טלפון', phone], ['דוא"ל', row['דוא"ל']], ['עיר', row['עיר']],
-      ['כתבה', row['כתבה']], ['קמפיין', row['קמפיין']],
+      ['לקוח', row['לקוח']], ['קמפיין', row['קמפיין']], ['כתבה', row['כתבה']],
       ['מקור', [row['utm_source'], row['utm_medium'], row['utm_campaign']].filter(String).join(' / ')],
       ['זמן', row['תאריך'] + ' ' + row['שעה']], ['דגלים', row['דגלים']], ['טאב בגיליון', row['יעד']]
     ].concat(extras || []).filter(function (l) { return l[1]; });
@@ -838,7 +1281,8 @@ function loadRoutingMap() {
       if (!a || !a.id || !a.lead) return;
       var L = a.lead;
       map[a.id] = {
-        tab: sanitizeTabName(L.sheetTab || L.campaign || a.id) || SHEET_NAME,
+        tab: L.sheetTab ? (sanitizeTabName(L.sheetTab) || SHEET_NAME) : SHEET_NAME,
+        campaignId: String(L.campaignId || ''),
         emails: splitList(L.notifyEmail),
         fields: customFields(L.fields),
         webhooks: splitList(L.webhooks).filter(function (u) { return /^https:\/\/\S+$/.test(u); })
@@ -852,8 +1296,8 @@ function loadRoutingMap() {
 /** ניתוב לליד לפי הכתבה. כתבה לא מוכרת - רק הטאב הראשי (כדי שאף אחד לא ייצר טאבים דרך הטופס) */
 function getLeadRouting(articleId) {
   var r = articleId ? loadRoutingMap()[articleId] : null;
-  if (!r) return { tab: SHEET_NAME, emails: [], webhooks: [], fields: [] };
-  return { tab: r.tab || SHEET_NAME, emails: r.emails || [], webhooks: r.webhooks || [], fields: r.fields || [] };
+  if (!r) return { tab: SHEET_NAME, emails: [], webhooks: [], fields: [], campaignId: '' };
+  return { tab: r.tab || SHEET_NAME, emails: r.emails || [], webhooks: r.webhooks || [], fields: r.fields || [], campaignId: r.campaignId || '' };
 }
 
 function clearRoutingCache() {
@@ -863,7 +1307,8 @@ function clearRoutingCache() {
 /* ---------- ניהול לידים מפאנל הניהול (עם סיסמה) ---------- */
 function listTabs() {
   try {
-    return SpreadsheetApp.openById(SHEET_ID).getSheets().map(function (sh) { return sh.getName(); });
+    return SpreadsheetApp.openById(SHEET_ID).getSheets().map(function (sh) { return sh.getName(); })
+      .filter(function (n) { return n !== CLIENTS_TAB && n !== CAMPAIGNS_TAB; });
   } catch (e) { return []; }
 }
 
@@ -895,7 +1340,10 @@ function saveLeadSettings(req, props) {
 
 /** ליד בדיקה שעובר את כל השרשרת (טאבים, מייל, webhooks) ומסומן "בדיקה". עם article - לפי הניתוב של הכתבה */
 function testLead(req) {
-  clearRoutingCache(); // שהבדיקה תשתמש בהגדרות העדכניות של הכתבה
+  clearRoutingCache(); // שהבדיקה תשתמש בהגדרות העדכניות של הכתבה והרישום
+  clearRegistryCache();
+  var nonce = Utilities.getUuid();
+  CacheService.getScriptCache().put('testnonce:' + nonce, '1', 60);
   var res = addLead({
     leadId: 'test-' + new Date().getTime(),
     fullname: 'ליד בדיקה',
@@ -909,7 +1357,9 @@ function testLead(req) {
     utm_source: 'test',
     utm_medium: 'admin',
     utm_campaign: 'test-lead',
-    test: true
+    test: true,
+    _nonce: nonce,
+    _campaignId: (req && req.campaignId) || ''
   });
   var data = JSON.parse(res.getContent());
   data.notifyEmail = PropertiesService.getScriptProperties().getProperty('NOTIFY_EMAIL') || '';
@@ -918,13 +1368,24 @@ function testLead(req) {
 }
 
 function getRecentLeads(req) {
-  var tab = sanitizeTabName((req && req.tab) || '') || SHEET_NAME;
-  var sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName(tab);
+  var tab = sanitizeTabName((req && req.tab) || '');
+  var ss, sheetUrl = SHEET_URL;
+  if (req && req.clientId) {
+    var client = getRegistry(false).clients[String(req.clientId)];
+    if (!client) return jsonResponse({ success: false, message: 'לקוח לא נמצא' });
+    ss = SpreadsheetApp.openById(client.sheetId);
+    sheetUrl = client.sheetUrl;
+    if (!tab) tab = CLIENT_ALL_TAB;
+  } else {
+    ss = SpreadsheetApp.openById(SHEET_ID);
+    if (!tab) tab = SHEET_NAME;
+  }
+  var sheet = ss.getSheetByName(tab);
   if (!sheet) return jsonResponse({ success: false, message: 'אין טאב בשם "' + tab + '"' });
   var headers = ensureHeaders(sheet);
   var lastRow = sheet.getLastRow();
   var n = Math.min(Number((req && req.limit) || 20), 100);
-  var base = { success: true, headers: headers, tab: tab, tabs: listTabs(), sheetUrl: SHEET_URL };
+  var base = { success: true, headers: headers, tab: tab, tabs: listTabs(), sheetUrl: sheetUrl };
   if (lastRow < 2) { base.rows = []; base.total = 0; return jsonResponse(base); }
   var start = Math.max(2, lastRow - n + 1);
   base.rows = sheet.getRange(start, 1, lastRow - start + 1, headers.length).getDisplayValues().reverse();
@@ -932,11 +1393,8 @@ function getRecentLeads(req) {
   return jsonResponse(base);
 }
 
-/** מוחק מכל הטאבים את השורות שמסומנות "בדיקה" בעמודת הדגלים (לידי בדיקה מהפאנל ומהבדיקות הטכניות) */
-function deleteTestLeads() {
-  var ss = SpreadsheetApp.openById(SHEET_ID);
-  var removed = 0;
-  var tabs = [];
+/** מוחק את השורות שמסומנות "בדיקה" בעמודת הדגלים - בגיליון הראשי ובגיליונות של כל הלקוחות */
+function deleteTestLeadsIn(ss, label, acc) {
   ss.getSheets().forEach(function (sheet) {
     var lastRow = sheet.getLastRow();
     var lastCol = sheet.getLastColumn();
@@ -949,9 +1407,19 @@ function deleteTestLeads() {
     for (var i = flags.length - 1; i >= 0; i--) { // מלמטה למעלה כדי שהאינדקסים לא יזוזו
       if (String(flags[i][0]).indexOf('בדיקה') > -1) { sheet.deleteRow(i + 2); count++; }
     }
-    if (count) { removed += count; tabs.push(sheet.getName() + ' (' + count + ')'); }
+    if (count) { acc.removed += count; acc.tabs.push(label + sheet.getName() + ' (' + count + ')'); }
   });
-  return jsonResponse({ success: true, removed: removed, message: removed ? 'נמחקו ' + removed + ' לידי בדיקה: ' + tabs.join(', ') : 'לא נמצאו לידי בדיקה' });
+}
+
+function deleteTestLeads() {
+  var acc = { removed: 0, tabs: [] };
+  deleteTestLeadsIn(SpreadsheetApp.openById(SHEET_ID), '', acc);
+  var reg = getRegistry(true);
+  Object.keys(reg.clients).forEach(function (id) {
+    var c = reg.clients[id];
+    try { deleteTestLeadsIn(SpreadsheetApp.openById(c.sheetId), c.name + ' / ', acc); } catch (e) { /* גיליון לא זמין */ }
+  });
+  return jsonResponse({ success: true, removed: acc.removed, message: acc.removed ? 'נמחקו ' + acc.removed + ' לידי בדיקה: ' + acc.tabs.join(', ') : 'לא נמצאו לידי בדיקה' });
 }
 
 /* ---------- עזרים ---------- */

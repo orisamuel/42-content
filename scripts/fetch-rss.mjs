@@ -326,6 +326,9 @@ async function main() {
       body: rw?.body || (it.summary || it.title),
       source: { name: it.sourceName, url: it.link },
       rewritten: Boolean(rw),
+      createdVia: 'rss',
+      createdBy: 'אוטומטי (RSS)',
+      createdAt: new Date().toISOString(),
       lead: null,
     };
   });
