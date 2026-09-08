@@ -29,6 +29,9 @@ var HEADERS = [
   'סטטוס', 'הערות', 'מזהה ליד', 'מזהה קליק', 'כתובת מלאה', 'דגלים', 'העברה', 'יעד'
 ];
 var STATUSES = ['חדש', 'בטיפול', 'נקבעה פגישה', 'נסגר', 'לא רלוונטי', 'כפול'];
+/* עמודות מערכת - שדה מותאם בטופס לא יכול לדרוס אותן */
+var SYSTEM_COLUMNS = HEADERS.filter(function (h) { return ['שם מלא', 'טלפון', 'דוא"ל', 'עיר'].indexOf(h) === -1; });
+var STANDARD_FIELD_NAMES = ['fullname', 'phone', 'email', 'city', 'website'];
 var SHEET_URL = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID;
 var ROUTING_CACHE_KEY = 'lead-routing-v1';
 
@@ -575,6 +578,20 @@ function addLead(p) {
   var routing = getLeadRouting(str(p.article));
   row['יעד'] = routing.tab;
 
+  /* שדות מותאמים של הטופס (למשל "תקציב" או "סוג נכס"): עמודה לפי הטקסט של השדה, רק לשדות שהוגדרו בכתבה */
+  var extras = [];
+  var extraHeaders = [];
+  (routing.fields || []).forEach(function (f) {
+    var v = str(p[f.name]);
+    if (!v) return;
+    var col = f.label;
+    if (SYSTEM_COLUMNS.indexOf(col) > -1) col = col + ' (טופס)';
+    if (row.hasOwnProperty(col) && row[col]) col = col + ' 2';
+    row[col] = v;
+    if (HEADERS.indexOf(col) === -1) extraHeaders.push(col);
+    extras.push([f.label, v]);
+  });
+
   /* כתיבה לגיליון תחת נעילה - כמה לידים באותה שנייה לא דורסים זה את זה.
      כל ליד נרשם בטאב הראשי (תמונה מלאה לסוכנות) וגם בטאב של הכתבה (ללקוח) */
   var lock = LockService.getScriptLock();
@@ -586,7 +603,7 @@ function addLead(p) {
     if (routing.tab && routing.tab !== SHEET_NAME) tabs.push(routing.tab);
     for (var t = 0; t < tabs.length; t++) {
       var sheet = ensureSheetIn(ss, tabs[t]);
-      var headers = ensureHeaders(sheet);
+      var headers = ensureHeaders(sheet, extraHeaders);
       sheet.appendRow(headers.map(function (h) { return row.hasOwnProperty(h) ? row[h] : ''; }));
       targets.push({ sheet: sheet, headers: headers, rowIndex: sheet.getLastRow() });
     }
@@ -598,14 +615,14 @@ function addLead(p) {
   if (phone) cache.put('phone:' + phone, '1', 86400);
 
   /* העברה ל-webhooks (כלליים + של הכתבה) והתראה במייל (כללי + של הכתבה). כישלון שם לא מכשיל את הליד */
-  var forwarded = forwardLead(row, flags, routing);
+  var forwarded = forwardLead(row, flags, routing, extras);
   if (forwarded) {
     for (var k = 0; k < targets.length; k++) {
       var col = targets[k].headers.indexOf('העברה') + 1;
       if (col > 0) targets[k].sheet.getRange(targets[k].rowIndex, col).setValue(forwarded);
     }
   }
-  var notified = notifyLead(row, flags, routing);
+  var notified = notifyLead(row, flags, routing, extras);
 
   var out = { success: true, message: 'הליד נקלט', leadId: leadId };
   if (p.test) out.routing = { tab: routing.tab, emails: notified, forwarded: forwarded };
@@ -640,12 +657,12 @@ function ensureSheetIn(ss, name) {
   return sheet;
 }
 
-/** משלים עמודות חסרות בשורת הכותרת (בסוף, בלי להזיז נתונים קיימים) ומחזיר את סדר הכותרות בפועל */
-function ensureHeaders(sheet) {
+/** משלים עמודות חסרות בשורת הכותרת (בסוף, בלי להזיז נתונים קיימים) ומחזיר את סדר הכותרות בפועל. extra = עמודות של שדות מותאמים */
+function ensureHeaders(sheet, extra) {
   var lastCol = Math.max(sheet.getLastColumn(), 1);
   var current = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function (v) { return String(v).trim(); });
   while (current.length && !current[current.length - 1]) current.pop();
-  var missing = HEADERS.filter(function (h) { return current.indexOf(h) === -1; });
+  var missing = HEADERS.concat(extra || []).filter(function (h, i, arr) { return current.indexOf(h) === -1 && arr.indexOf(h) === i; });
   if (missing.length) {
     sheet.getRange(1, current.length + 1, 1, missing.length).setValues([missing]).setFontWeight('bold');
     current = current.concat(missing);
@@ -663,7 +680,13 @@ function applyStatusValidation(sheet, headers) {
 }
 
 /** ה-JSON שנשלח ל-webhooks חיצוניים - מפתחות באנגלית כדי שכל CRM/אוטומציה יבינו */
-function leadPayload(row, flags) {
+function extrasToObject(extras) {
+  var o = {};
+  (extras || []).forEach(function (e) { o[e[0]] = e[1]; });
+  return o;
+}
+
+function leadPayload(row, flags, extras) {
   return {
     source: 'channel18',
     leadId: row['מזהה ליד'],
@@ -685,6 +708,7 @@ function leadPayload(row, flags) {
     utm_term: row['utm_term'],
     clickId: row['מזהה קליק'],
     sheetTab: row['יעד'] || '',
+    extra: extrasToObject(extras),
     flags: flags,
     test: flags.indexOf('בדיקה') > -1
   };
@@ -696,13 +720,13 @@ function getForwardUrls() {
 }
 
 /** שולח את הליד לכל ה-webhooks במקביל ומחזיר סיכום קצר לעמודת "העברה" */
-function forwardLead(row, flags, routing) {
+function forwardLead(row, flags, routing, extras) {
   var urls = getForwardUrls();
   if (routing && routing.webhooks) {
     routing.webhooks.forEach(function (u) { if (urls.indexOf(u) === -1) urls.push(u); });
   }
   if (!urls.length) return '';
-  var body = JSON.stringify(leadPayload(row, flags));
+  var body = JSON.stringify(leadPayload(row, flags, extras));
   var requests = urls.map(function (u) {
     return { url: u, method: 'post', contentType: 'application/json', payload: body, muteHttpExceptions: true };
   });
@@ -725,7 +749,7 @@ function hostOf(url) {
 }
 
 /** התראה במייל על ליד חדש (אם הוגדר NOTIFY_EMAIL) עם קישורי חיוג ווואטסאפ */
-function notifyLead(row, flags, routing) {
+function notifyLead(row, flags, routing, extras) {
   var recipients = splitList(PropertiesService.getScriptProperties().getProperty('NOTIFY_EMAIL'));
   if (routing && routing.emails) {
     routing.emails.forEach(function (e) { if (recipients.indexOf(e) === -1) recipients.push(e); });
@@ -742,7 +766,7 @@ function notifyLead(row, flags, routing) {
       ['כתבה', row['כתבה']], ['קמפיין', row['קמפיין']],
       ['מקור', [row['utm_source'], row['utm_medium'], row['utm_campaign']].filter(String).join(' / ')],
       ['זמן', row['תאריך'] + ' ' + row['שעה']], ['דגלים', row['דגלים']], ['טאב בגיליון', row['יעד']]
-    ].filter(function (l) { return l[1]; });
+    ].concat(extras || []).filter(function (l) { return l[1]; });
     var html = '<div dir="rtl" style="font-family:Arial,sans-serif;font-size:15px">' +
       '<h2 style="margin:0 0 12px">ליד חדש מ-Channel 18</h2>' +
       '<table cellpadding="6" style="border-collapse:collapse">' +
@@ -773,8 +797,20 @@ function splitList(v) {
   return String(v || '').split(/[\s,;]+/).map(function (x) { return x.trim(); }).filter(Boolean);
 }
 
+/** שדות מותאמים שהוגדרו בטופס של הכתבה (מעבר לשם/טלפון/מייל/עיר): [{name, label}] */
+function customFields(fields) {
+  var out = [];
+  (fields || []).forEach(function (f) {
+    if (!f || !f.name || STANDARD_FIELD_NAMES.indexOf(f.name) > -1) return;
+    var name = String(f.name).replace(/[^\w-]/g, '').slice(0, 40);
+    if (!name) return;
+    out.push({ name: name, label: String(f.label || name).trim().slice(0, 60) || name });
+  });
+  return out;
+}
+
 /**
- * מפת ניתוב לכל הכתבות: { articleId: { tab, emails[], webhooks[] } }.
+ * מפת ניתוב לכל הכתבות: { articleId: { tab, emails[], webhooks[], fields[] } }.
  * נקראת מ-data/articles.json (דרך GitHub API - תמיד הגרסה העדכנית; בלי טוקן - מ-raw) ונשמרת במטמון ל-10 דקות.
  * הפאנל מנקה את המטמון בכל שמירת כתבה, כך שהגדרה חדשה תופסת מיד.
  */
@@ -802,6 +838,7 @@ function loadRoutingMap() {
       map[a.id] = {
         tab: sanitizeTabName(L.sheetTab || L.campaign || a.id) || SHEET_NAME,
         emails: splitList(L.notifyEmail),
+        fields: customFields(L.fields),
         webhooks: splitList(L.webhooks).filter(function (u) { return /^https:\/\/\S+$/.test(u); })
       };
     });
@@ -813,8 +850,8 @@ function loadRoutingMap() {
 /** ניתוב לליד לפי הכתבה. כתבה לא מוכרת - רק הטאב הראשי (כדי שאף אחד לא ייצר טאבים דרך הטופס) */
 function getLeadRouting(articleId) {
   var r = articleId ? loadRoutingMap()[articleId] : null;
-  if (!r) return { tab: SHEET_NAME, emails: [], webhooks: [] };
-  return { tab: r.tab || SHEET_NAME, emails: r.emails || [], webhooks: r.webhooks || [] };
+  if (!r) return { tab: SHEET_NAME, emails: [], webhooks: [], fields: [] };
+  return { tab: r.tab || SHEET_NAME, emails: r.emails || [], webhooks: r.webhooks || [], fields: r.fields || [] };
 }
 
 function clearRoutingCache() {

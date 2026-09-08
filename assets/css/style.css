@@ -254,7 +254,10 @@ a { color: inherit; text-decoration: none; }
   font-size: 15.5px;
   color: var(--ink);
 }
-.lead-form input:focus { outline: 3px solid rgba(230, 57, 70, .45); border-color: var(--accent); }
+.lead-form input:focus, .lead-form select:focus { outline: 3px solid rgba(230, 57, 70, .45); border-color: var(--accent); }
+/* שדה בחירה: כל עוד לא נבחר כלום, הטקסט אפור כמו placeholder */
+.lead-form select:required:invalid { color: var(--muted); }
+.lead-form select option { color: var(--ink); }
 .lead-form button {
   padding: 14px;
   border: 0;

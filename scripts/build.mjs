@@ -252,11 +252,18 @@ const gridCard = (a, root) => `
 function leadFormHtml(a) {
   const lead = a.lead;
   if (!lead || !lead.enabled) return '';
+  // כל שדה: name (מזהה), label (הטקסט שמופיע בשדה + שם העמודה בגיליון), type, required, options (לבחירה מרשימה)
   const fields = (lead.fields || [])
+    .filter((f) => f && f.name)
     .map((f) => {
       const type = f.type || 'text';
-      const mode = type === 'tel' ? ' inputmode="tel"' : type === 'email' ? ' inputmode="email"' : '';
-      return `<input type="${escAttr(type)}" name="${escAttr(f.name)}" placeholder="${escAttr(f.label)}"${f.required ? ' required' : ''}${mode} autocomplete="on">`;
+      const req = f.required ? ' required' : '';
+      if (type === 'select') {
+        const opts = (f.options || []).map((o) => `<option value="${escAttr(o)}">${esc(o)}</option>`).join('');
+        return `<select name="${escAttr(f.name)}"${req}><option value="" disabled selected>${esc(f.label || 'בחירה')}</option>${opts}</select>`;
+      }
+      const mode = type === 'tel' ? ' inputmode="tel"' : type === 'email' ? ' inputmode="email"' : type === 'number' ? ' inputmode="numeric"' : '';
+      return `<input type="${escAttr(type)}" name="${escAttr(f.name)}" placeholder="${escAttr(f.label)}"${req}${mode} autocomplete="on">`;
     })
     .join('\n      ');
   return `
