@@ -1,54 +1,5 @@
 [
   {
-    "id": "test-routing-tmp",
-    "title": "בדיקת ניתוב לידים (זמני)",
-    "subtitle": "כתבת בדיקה זמנית, תימחק בעוד דקות.",
-    "category": "טכנולוגיה",
-    "image": "",
-    "author": "מערכת Channel 18",
-    "date": "2026-09-08T13:15:46.536Z",
-    "featured": false,
-    "body": "כתבת בדיקה זמנית של ניתוב לידים ללקוח וקמפיין.",
-    "lead": {
-      "enabled": true,
-      "position": "bottom",
-      "title": "בדיקה",
-      "subtitle": "",
-      "buttonText": "שליחה",
-      "successMessage": "תודה",
-      "clientId": "c-mtsozue8",
-      "campaignId": "k-mtsp00a3",
-      "campaign": "טופ עלי",
-      "fields": [
-        {
-          "name": "fullname",
-          "label": "שם מלא",
-          "type": "text",
-          "required": true
-        },
-        {
-          "name": "phone",
-          "label": "טלפון נייד",
-          "type": "tel",
-          "required": true
-        },
-        {
-          "name": "x1",
-          "label": "סוג נכס",
-          "type": "select",
-          "required": true,
-          "options": [
-            "דירה",
-            "פנטהאוז"
-          ]
-        }
-      ]
-    },
-    "createdAt": "2026-09-08T13:15:48.272Z",
-    "createdBy": "סיסמת גיבוי",
-    "createdVia": "manual"
-  },
-  {
     "id": "a-20260908-1537",
     "title": "מדריך למפעיל: איך מייצרים כתבה ב-Channel 18 ולאן בדיוק נעלמים הלידים",
     "subtitle": "הכול נמצא בפאנל אחד, אבל מי שלא נכנס אליו פעם לא ידע. חמש דקות קריאה, ותדעו לפרסם כתבה עם טופס, לנתב את הלידים ללקוח הנכון, לבדוק שהכול באמת עובד, ומה נשאר לסגור לפני שהקמפיין הראשון עולה.",
