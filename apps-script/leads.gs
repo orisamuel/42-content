@@ -263,6 +263,13 @@ function checkServices() {
   return out;
 }
 
+/** מאפס את ההרשאה של בעל הסקריפט - להרצה בעורך כשגוגל אישרה רק חלק מההרשאות (למשל Drive לקריאה בלבד).
+ *  אחרי ההרצה, ההפעלה הבאה של כל פונקציה תבקש את כל ההרשאות מחדש. עד האישור מחדש ה-web app לא פעיל - לאשר מיד. */
+function resetAuthorization() {
+  ScriptApp.invalidateAuth();
+  Logger.log('ההרשאה אופסה - הריצו עכשיו authorizeServices ואשרו את כל ההרשאות (כולל Drive מלא)');
+}
+
 /** להרצה ידנית פעם אחת בעורך (Run) - מבקש את כל ההרשאות שהסקריפט צריך */
 function authorizeServices() {
   SpreadsheetApp.openById(SHEET_ID).getName();
