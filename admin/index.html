@@ -25,6 +25,7 @@
   input:focus, textarea:focus, select:focus { outline:2px solid rgba(230,57,70,.35); border-color:var(--accent); }
   textarea { min-height:260px; resize:vertical; }
   .row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .row3 { display:grid; grid-template-columns:1.5fr 1fr 1fr; gap:12px; }
   .hint { font-size:12px; color:var(--muted); margin-top:3px; }
   .check { display:flex; align-items:center; gap:8px; font-size:14.5px; margin:6px 0; font-weight:500; }
   .check input { width:17px; height:17px; accent-color:var(--accent); }
@@ -114,7 +115,7 @@
   #btn-logout { background:none; border:0; color:rgba(255,255,255,.7); font-family:inherit; font-size:13px; cursor:pointer; display:none; }
   #btn-logout:hover { color:#fff; text-decoration:underline; }
   @media (max-width:760px){
-    .row { grid-template-columns:1fr; }
+    .row, .row3 { grid-template-columns:1fr; }
     .lf-row { grid-template-columns:22px 1fr 1fr; } .lf-row .lf-options { grid-column:2 / -1; }
     #app.on { grid-template-columns:1fr; }
     #sidenav { position:static; height:auto; flex-direction:row; overflow-x:auto; border-inline-end:0; border-bottom:1px solid var(--line); padding:8px; }
@@ -304,7 +305,7 @@
     <section class="view" data-view="clients">
       <section class="panel" id="clientsPanel">
         <h2>לקוחות וקמפיינים</h2>
-        <div class="hint">לכל לקוח <b>קובץ</b> Google Sheets משלו (נפתח אוטומטית); לכל קמפיין <b>טאב</b> בתוך הקובץ של הלקוח. כתבה מצביעה על קמפיין. כל ליד נרשם גם בטאב "לידים" בקובץ הראשי של הסוכנות. מיילים ו-webhooks: ברמת הלקוח (כל הקמפיינים שלו) וברמת הקמפיין, בנוסף לכלליים במסך "לידים".</div>
+        <div class="hint">לכל לקוח <b>קובץ</b> Google Sheets משלו (נפתח אוטומטית); לכל קמפיין <b>טאב</b> בתוך הקובץ של הלקוח. כתבה מצביעה על קמפיין. כל ליד נרשם גם בטאב "לידים" בקובץ הראשי של הסוכנות. מיילים ו-webhooks: ברמת הלקוח (כל הקמפיינים שלו) וברמת הקמפיין, בנוסף לכלליים במסך "לידים". לכל לקוח בוחרים מתי הוא מקבל מייל: כמו ההגדרה הכללית (ברירת מחדל: סיכום שבועי), מיידי על כל ליד, סיכום יומי או שבועי.</div>
         <div id="clientsList"></div>
         <details id="clientForm" style="margin-top:14px">
           <summary style="cursor:pointer; font-weight:700" id="clientFormTitle">+ לקוח חדש</summary>
@@ -313,9 +314,18 @@
             <div><label>קובץ Google Sheets קיים (אופציונלי)</label><input type="text" id="c-sheet" placeholder="קישור לקובץ קיים; ריק = ייפתח קובץ חדש"></div>
           </div>
           <div class="row">
-            <div><label>מיילים להתראה על כל ליד</label><input type="text" id="c-email" placeholder="sales@client.co.il, ..."></div>
+            <div><label>מיילים להתראה על לידים</label><input type="text" id="c-email" placeholder="sales@client.co.il, ..."></div>
             <div><label>לשתף את הקובץ עם</label><input type="text" id="c-share" placeholder="מיילים של הלקוח (יקבלו הרשאת עריכה)"></div>
           </div>
+          <label>מתי הלקוח מקבל מייל</label>
+          <select id="c-mode">
+            <option value="">כמו ההגדרה הכללית (מסך "לידים")</option>
+            <option value="instant">מייל מיידי על כל ליד</option>
+            <option value="daily">סיכום יומי</option>
+            <option value="weekly">סיכום שבועי</option>
+            <option value="off">בלי מיילים</option>
+          </select>
+          <div class="hint">חל על המיילים של הלקוח ושל הקמפיינים שלו. סיכומים יוצאים ביום ובשעה שנקבעו בהגדרה הכללית. איש מכירות שצריך להתקשר מיד? "מייל מיידי על כל ליד".</div>
           <label>Webhooks של הלקוח (כתובת בכל שורה)</label>
           <textarea id="c-webhooks" style="min-height:60px" placeholder="https://hook.eu1.make.com/..."></textarea>
           <div class="actions" style="margin-top:10px">
@@ -334,21 +344,48 @@
           <a class="btn btn-ghost btn-sm" id="link-sheet" href="https://docs.google.com/spreadsheets/d/1Vw1TM5Jg_WiQTxBFJCvveNm_Bn5pcgYLcu28egueMXY" target="_blank" rel="noopener">📊 הגיליון הראשי</a>
           <select id="leads-tab" style="min-width:170px; width:auto"><option value="">טאב ראשי: לידים (הכול)</option></select>
           <button class="btn btn-ghost btn-sm" id="btn-leads">הצגת לידים אחרונים</button>
-          <button class="btn btn-ghost btn-sm" id="btn-lead-settings">⚙️ התראות ו-webhooks כלליים</button>
+          <button class="btn btn-ghost btn-sm" id="btn-lead-settings">⚙️ מיילים, תדירות ו-webhooks</button>
           <button class="btn btn-ghost btn-sm" id="btn-clear-tests" title="מוחק מכל הגיליונות את השורות שמסומנות בדיקה">🧹 מחיקת לידי בדיקה</button>
         </div>
-        <div class="hint">ניהול הלידים עצמו (סטטוס, הערות) נעשה בגיליונות - עמודת "סטטוס" היא רשימה נפתחת. כאן רואים את האחרונים ומגדירים יעדים כלליים לכל הלידים.</div>
+        <div class="hint">ניהול הלידים עצמו (סטטוס, הערות) נעשה בגיליונות - עמודת "סטטוס" היא רשימה נפתחת. כאן רואים את האחרונים, קובעים מתי נשלח מייל על לידים (ברירת מחדל: סיכום שבועי) ומגדירים יעדים כלליים.</div>
         <div id="leadsList"></div>
         <div id="leadSettings" style="display:none; margin-top:14px; padding:14px; background:#f7f8fa; border-radius:10px">
-          <label>מייל להתראה על כל ליד חדש (של הסוכנות)</label>
+          <div style="font-weight:800; font-size:14px">מיילים על לידים</div>
+          <div class="row3">
+            <div>
+              <label>מתי נשלח מייל (ההגדרה הכללית)</label>
+              <select id="ls-mode">
+                <option value="weekly">סיכום שבועי - ברירת המחדל</option>
+                <option value="daily">סיכום יומי</option>
+                <option value="instant">מייל מיידי על כל ליד</option>
+                <option value="off">בלי מיילים (רק גיליון ו-webhooks)</option>
+              </select>
+            </div>
+            <div id="ls-day-wrap">
+              <label>ביום</label>
+              <select id="ls-day">
+                <option value="0">ראשון</option><option value="1">שני</option><option value="2">שלישי</option><option value="3">רביעי</option>
+                <option value="4">חמישי</option><option value="5">שישי</option><option value="6">שבת</option>
+              </select>
+            </div>
+            <div id="ls-hour-wrap">
+              <label>בשעה (בסביבות)</label>
+              <select id="ls-hour"></select>
+            </div>
+          </div>
+          <label class="check" id="ls-empty-wrap"><input type="checkbox" id="ls-empty" checked> לשלוח סיכום גם כשלא נכנסו לידים בתקופה</label>
+          <div class="hint" id="ls-digest-status"></div>
+          <label>מיילים של הסוכנות שמקבלים את הלידים (מופרדים בפסיק)</label>
           <input type="text" id="ls-email" placeholder="leads@42creative.co.il (ריק = בלי מייל)">
-          <div class="hint">כל ליד מכל לקוח נשלח גם למייל הזה. מיילים של לקוחות מוגדרים בלקוח ובקמפיין.</div>
+          <div class="hint">מקבלים את <b>כל</b> הלידים מכל הלקוחות, לפי התדירות שנבחרה למעלה. מיילים של לקוחות מוגדרים בלקוח ובקמפיין, ולכל לקוח קובעים תדירות משלו (למשל מיידי לאיש המכירות שלו).</div>
           <label>Webhooks כלליים (כתובת אחת בכל שורה)</label>
           <textarea id="ls-webhooks" style="min-height:90px" placeholder="https://hook.eu1.make.com/...&#10;https://hooks.zapier.com/hooks/catch/..."></textarea>
-          <div class="hint">כל ליד נשלח כ-JSON (POST) לכל כתובת ברשימה. תוצאת השליחה נרשמת בעמודה "העברה" בגיליון.</div>
+          <div class="hint">כל ליד נשלח מיידית כ-JSON (POST) לכל כתובת ברשימה, בלי קשר לתדירות המיילים. תוצאת השליחה נרשמת בעמודה "העברה" בגיליון.</div>
           <div class="actions" style="margin-top:12px">
             <button class="btn btn-primary btn-sm" id="btn-save-lead-settings">שמירת ההגדרות</button>
             <button class="btn btn-ghost btn-sm" id="btn-test-lead">🧪 שליחת ליד בדיקה (כללי)</button>
+            <button class="btn btn-ghost btn-sm" id="btn-digest-preview" title="שולח למייל שלכם בלבד את הסיכום של התקופה האחרונה, בלי לשנות את מועד הסיכום הבא">👁 תצוגה מקדימה של הסיכום אליי</button>
+            <button class="btn btn-ghost btn-sm" id="btn-digest-now" title="שולח לכל הנמענים את הלידים שהצטברו מאז הסיכום הקודם; התקופה הבאה מתחילה מעכשיו">📨 שליחת הסיכום עכשיו לכל הנמענים</button>
           </div>
         </div>
       </section>
@@ -702,6 +739,8 @@
     }).catch(function (err) { fail(err, 'טעינת הלקוחות נכשלה'); });
   }
 
+  var MODE_LABELS = { weekly: 'סיכום שבועי', daily: 'סיכום יומי', instant: 'מיידי על כל ליד', off: 'בלי מיילים' };
+  function modeLabel(m) { return MODE_LABELS[m] || 'לפי ההגדרה הכללית'; }
   function clientList() {
     return Object.keys(registry.clients).map(function (id) { return registry.clients[id]; })
       .sort(function (a, b) { return a.name.localeCompare(b.name, 'he'); });
@@ -727,7 +766,8 @@
       head.appendChild(editBtn);
       var meta = el('div', null, 'client-meta');
       var parts = [];
-      if (c.emails && c.emails.length) parts.push('מיילים: ' + c.emails.join(', '));
+      if (c.emails && c.emails.length) parts.push('מיילים: ' + c.emails.join(', ') + ' (' + modeLabel(c.notifyMode) + ')');
+      else if (c.notifyMode) parts.push('מיילים: ' + modeLabel(c.notifyMode));
       if (c.webhooks && c.webhooks.length) parts.push('webhooks: ' + c.webhooks.length);
       if (c.sharedWith) parts.push('משותף עם: ' + c.sharedWith);
       if (c.createdBy) parts.push('נוצר ' + c.createdAt + ' על ידי ' + c.createdBy);
@@ -773,7 +813,7 @@
     var mk = function (ph) { var i = el('input'); i.type = 'text'; i.placeholder = ph; return i; };
     var fName = mk('שם הקמפיין *');
     var fTab = mk('שם הטאב (ברירת מחדל: שם הקמפיין)');
-    var fEmails = mk('מיילים להתראה, מופרדים בפסיק');
+    var fEmails = mk('מיילים (לפי תדירות הלקוח), מופרדים בפסיק');
     var fHooks = mk('webhooks, מופרדים ברווח');
     var save = el('button', '+ קמפיין', 'btn btn-ghost btn-sm'); save.type = 'button';
     var cancel = el('button', 'ביטול', 'link-btn'); cancel.type = 'button'; cancel.style.display = 'none';
@@ -813,13 +853,20 @@
     };
   }
 
+  /* ניסוח תוצאת המייל של ליד בדיקה: מיידי - כמה נמענים; סיכום - לידי בדיקה לא נכללים בו */
+  function describeMailResult(r) {
+    if (r.notifyMode === 'instant' || r.clientMode === 'instant') return r.emails ? ' נשלח מייל מיידי ל-' + r.emails + ' נמענים.' : ' לא הוגדרו מיילים לשליחה מיידית.';
+    if ((r.clientMode || r.notifyMode) === 'off') return ' מיילים: כבויים.';
+    return ' מיילים: ' + (r.clientModeLabel || r.notifyModeLabel || 'סיכום') + ' - לידי בדיקה לא נכללים בסיכומים; לבדיקת המייל לחצו "תצוגה מקדימה של הסיכום" במסך לידים.';
+  }
+
   function testCampaign(k, c) {
     if (!confirm('לשלוח ליד בדיקה לקמפיין "' + k.name + '" של ' + c.name + '?')) return;
     api('testLead', { campaignId: k.id }).then(function (res) {
       if (!res.success) throw new Error(res.message);
       var r = res.routing || {};
       var msg = 'ליד הבדיקה נרשם ב"' + (r.tab || '') + '" וגם בטאב הראשי.';
-      msg += r.emails ? ' נשלח מייל ל-' + r.emails + ' נמענים.' : ' לא הוגדר מייל התראה.';
+      msg += describeMailResult(r);
       msg += r.forwarded ? ' Webhooks: ' + r.forwarded + '.' : '';
       if (r.warning) msg += ' ⚠️ ' + r.warning;
       showStatus(msg, !r.warning, r.clientSheetUrl || res.sheetUrl, 'פתיחת הגיליון');
@@ -835,6 +882,7 @@
     $('c-email').value = (c.emails || []).join(', ');
     $('c-share').value = '';
     $('c-webhooks').value = (c.webhooks || []).join('\n');
+    $('c-mode').value = c.notifyMode || '';
     $('btn-save-client').textContent = 'שמירת השינויים';
     $('btn-cancel-client').style.display = 'inline-block';
     $('clientForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -843,7 +891,7 @@
   function resetClientForm() {
     editingClientId = '';
     $('clientFormTitle').textContent = '+ לקוח חדש';
-    ['c-name', 'c-sheet', 'c-email', 'c-share', 'c-webhooks'].forEach(function (id) { $(id).value = ''; });
+    ['c-name', 'c-sheet', 'c-email', 'c-share', 'c-webhooks', 'c-mode'].forEach(function (id) { $(id).value = ''; });
     $('btn-save-client').textContent = 'שמירת הלקוח';
     $('btn-cancel-client').style.display = 'none';
   }
@@ -855,10 +903,11 @@
     var done = busy(this, 'שומר...');
     api('saveClient', {
       id: editingClientId, name: name, sheetUrl: $('c-sheet').value.trim(),
-      notifyEmail: $('c-email').value.trim(), shareWith: $('c-share').value.trim(), webhooks: $('c-webhooks').value.trim()
+      notifyEmail: $('c-email').value.trim(), shareWith: $('c-share').value.trim(), webhooks: $('c-webhooks').value.trim(),
+      notifyMode: $('c-mode').value
     }).then(function (res) {
       if (!res.success) throw new Error(res.message);
-      showStatus(res.message, true, res.sheetUrl, 'פתיחת הגיליון');
+      showStatus(res.message + (res.warning ? ' ⚠️ ' + res.warning : ''), !res.warning, res.sheetUrl, 'פתיחת הגיליון');
       resetClientForm();
       $('clientForm').open = false;
       return loadRegistry();
@@ -1103,7 +1152,7 @@
       if (!res.success) throw new Error(res.message);
       var r = res.routing || {};
       var msg = r.client ? 'ליד הבדיקה נרשם אצל ' + r.client + ' בטאב "' + (r.campaign || '') + '" וגם בטאב הראשי.' : 'ליד הבדיקה נרשם בטאב הראשי בלבד (לכתבה אין קמפיין).';
-      msg += r.emails ? ' נשלח מייל ל-' + r.emails + ' נמענים.' : ' לא הוגדר מייל התראה.';
+      msg += describeMailResult(r);
       msg += r.forwarded ? ' Webhooks: ' + r.forwarded + '.' : '';
       if (r.warning) msg += ' ⚠️ ' + r.warning;
       showStatus(msg, !r.warning, r.clientSheetUrl || res.sheetUrl, 'פתיחת הגיליון');
@@ -1310,29 +1359,97 @@
     }).catch(function (err) { fail(err); }).finally(done);
   });
 
-  $('btn-lead-settings').addEventListener('click', function () {
-    var box = $('leadSettings');
-    if (box.style.display === 'block') { box.style.display = 'none'; return; }
-    var done = busy(this, 'טוען...');
-    api('getLeadSettings').then(function (res) {
+  /* מתי נשלח מייל על לידים: שעות לבחירה, ואילו שדות רלוונטיים לכל תדירות */
+  (function fillHours() {
+    var sel = $('ls-hour');
+    for (var h = 0; h < 24; h++) { var o = el('option', (h < 10 ? '0' : '') + h + ':00'); o.value = h; sel.appendChild(o); }
+    sel.value = '8';
+  })();
+  function syncModeFields() {
+    var mode = $('ls-mode').value;
+    var digest = mode === 'weekly' || mode === 'daily';
+    $('ls-day-wrap').style.visibility = mode === 'weekly' ? 'visible' : 'hidden';
+    $('ls-hour-wrap').style.visibility = digest ? 'visible' : 'hidden';
+    $('ls-empty-wrap').style.display = digest ? 'flex' : 'none';
+  }
+  $('ls-mode').addEventListener('change', syncModeFields);
+
+  var leadScriptUrl = '';
+  /* מצב הסיכומים: התדירות, המועד הבא, הריצה האחרונה, ואזהרה אם הטריגר השעתי לא מותקן / חסרה הרשאה */
+  function renderDigestStatus(d) {
+    var box = $('ls-digest-status');
+    box.innerHTML = '';
+    if (!d) return;
+    var parts = [];
+    if (d.schedule) parts.push(d.schedule);
+    if (d.nextLabel) parts.push('הסיכום הבא: ' + d.nextLabel);
+    if (d.lastRun && d.lastRun.at) {
+      parts.push('ריצה אחרונה: ' + fmtDate(d.lastRun.at) + ' - ' + (d.lastRun.sent || 0) + ' מיילים, ' + (d.lastRun.leads || 0) + ' לידים' +
+        (d.lastRun.errors && d.lastRun.errors.length ? ' ⚠️ ' + d.lastRun.errors.join(' | ') : ''));
+    }
+    box.appendChild(el('div', parts.join(' · ')));
+    if (d.trigger && !d.trigger.ok) {
+      var warn = el('div', '⚠️ ' + d.trigger.message + ' ');
+      warn.style.color = '#c22733'; warn.style.fontWeight = '600'; warn.style.marginTop = '4px';
+      if (leadScriptUrl) { var a = el('a', 'פתיחת העורך'); a.href = leadScriptUrl; a.target = '_blank'; a.rel = 'noopener'; warn.appendChild(a); }
+      box.appendChild(warn);
+    } else if (d.trigger && !d.trigger.installed) {
+      box.appendChild(el('div', 'ℹ️ ' + d.trigger.message));
+    }
+  }
+
+  function loadLeadSettings(box, btn) {
+    var done = busy(btn, 'טוען...');
+    return api('getLeadSettings').then(function (res) {
       if (!res.success) throw new Error(res.message);
       $('ls-email').value = res.notifyEmail || '';
       $('ls-webhooks').value = res.forwardWebhooks || '';
+      $('ls-mode').value = res.notifyMode || 'weekly';
+      $('ls-day').value = String(res.notifyDay == null ? 0 : res.notifyDay);
+      $('ls-hour').value = String(res.notifyHour == null ? 8 : res.notifyHour);
+      $('ls-empty').checked = res.notifyEmpty !== false;
+      leadScriptUrl = res.scriptUrl || leadScriptUrl;
+      syncModeFields();
+      renderDigestStatus(res.digest);
       if (res.sheetUrl) $('link-sheet').href = res.sheetUrl;
       fillTabs(res.tabs);
       box.style.display = 'block';
     }).catch(function (err) { fail(err); }).finally(done);
+  }
+
+  $('btn-lead-settings').addEventListener('click', function () {
+    var box = $('leadSettings');
+    if (box.style.display === 'block') { box.style.display = 'none'; return; }
+    loadLeadSettings(box, this);
   });
 
   $('btn-save-lead-settings').addEventListener('click', function () {
     var done = busy(this, 'שומר...');
-    api('saveLeadSettings', { notifyEmail: $('ls-email').value.trim(), forwardWebhooks: $('ls-webhooks').value.trim() })
-      .then(function (res) {
-        if (!res.success) throw new Error(res.message);
-        showStatus('הגדרות הלידים נשמרו. מומלץ לשלוח ליד בדיקה כדי לוודא שהכול מגיע.', true);
-      })
-      .catch(function (err) { fail(err); })
-      .finally(done);
+    api('saveLeadSettings', {
+      notifyEmail: $('ls-email').value.trim(), forwardWebhooks: $('ls-webhooks').value.trim(),
+      notifyMode: $('ls-mode').value, notifyDay: $('ls-day').value, notifyHour: $('ls-hour').value, notifyEmpty: $('ls-empty').checked
+    }).then(function (res) {
+      if (!res.success) throw new Error(res.message);
+      renderDigestStatus(res.digest);
+      showStatus(res.message + (res.warning ? ' ⚠️ ' + res.warning : ' מומלץ לשלוח ליד בדיקה או תצוגה מקדימה של הסיכום.'), !res.warning);
+    }).catch(function (err) { fail(err); }).finally(done);
+  });
+
+  $('btn-digest-preview').addEventListener('click', function () {
+    var done = busy(this, 'שולח...');
+    api('sendDigestNow', { preview: true }).then(function (res) {
+      if (!res.success) throw new Error(res.message);
+      showStatus(res.message, true);
+    }).catch(function (err) { fail(err); }).finally(done);
+  });
+
+  $('btn-digest-now').addEventListener('click', function () {
+    if (!confirm('לשלוח עכשיו לכל הנמענים (הסוכנות ולקוחות בתדירות סיכום) את הלידים שהצטברו מאז הסיכום הקודם? התקופה הבאה תתחיל מעכשיו.')) return;
+    var done = busy(this, 'שולח...');
+    api('sendDigestNow', {}).then(function (res) {
+      showStatus(res.message, Boolean(res.success));
+      return api('getLeadSettings').then(function (s) { if (s.success) renderDigestStatus(s.digest); });
+    }).catch(function (err) { fail(err); }).finally(done);
   });
 
   $('btn-test-lead').addEventListener('click', function () {
@@ -1342,7 +1459,7 @@
       var r = res.routing || {};
       var msg = 'ליד הבדיקה נקלט בטאב הראשי (מסומן "בדיקה").';
       msg += r.forwarded ? ' Webhooks: ' + r.forwarded + '.' : ' לא מוגדרים webhooks כלליים.';
-      msg += r.emails ? ' נשלח מייל ל-' + r.emails + ' נמענים.' : ' לא מוגדר מייל התראה כללי.';
+      msg += describeMailResult(r);
       showStatus(msg, true, res.sheetUrl, 'פתיחת הגיליון');
     }).catch(function (err) { fail(err); }).finally(done);
   });
@@ -1408,7 +1525,7 @@
     api('checkServices').then(function (res) {
       var box = $('svc-status');
       box.innerHTML = '';
-      var items = [['sheets', 'Google Sheets (גיליונות)'], ['mail', 'Gmail (התראות במייל)'], ['drive', 'Drive (שיתוף גיליונות עם לקוחות)']];
+      var items = [['sheets', 'Google Sheets (גיליונות)'], ['mail', 'Gmail (מיילים על לידים)'], ['drive', 'Drive (שיתוף גיליונות עם לקוחות)'], ['triggers', 'טריגרים (סיכומי לידים אוטומטיים)']];
       var missing = false;
       items.forEach(function (it) {
         var st = res[it[0]] || {};

@@ -5,8 +5,16 @@
  *
  * סודות (Script Properties): GH_TOKEN, GEMINI_KEY
  * הגדרות לידים (Script Properties, נערכות מפאנל הניהול -> "לידים"):
- *   NOTIFY_EMAIL     - מייל שמקבל התראה על כל ליד (ריק = בלי)
- *   FORWARD_WEBHOOKS - כתובות https (מופרדות בשורה/פסיק) שכל ליד נשלח אליהן כ-JSON (CRM / Make / Zapier)
+ *   NOTIFY_EMAIL     - מיילים של הסוכנות (מופרדים בפסיק) שמקבלים את הלידים לפי התדירות שנבחרה (ריק = בלי)
+ *   NOTIFY_MODE      - מתי נשלח מייל: weekly (ברירת מחדל: סיכום שבועי) | daily (סיכום יומי) | instant (על כל ליד) | off
+ *   NOTIFY_DAY       - יום הסיכום השבועי (0 = ראשון ... 6 = שבת; ברירת מחדל 0)
+ *   NOTIFY_HOUR      - שעת הסיכום (0-23; ברירת מחדל 8). הסיכום יוצא בשעה שאחריה (טריגר שעתי)
+ *   NOTIFY_EMPTY     - '1' (ברירת מחדל) = לשלוח סיכום גם כשלא היו לידים, '0' = לדלג
+ *   DIGEST_LAST:<general|clientId> - סוף התקופה האחרונה שסוכמה (ISO); DIGEST_LAST_RUN - יומן הריצה האחרונה (JSON)
+ *   FORWARD_WEBHOOKS - כתובות https (מופרדות בשורה/פסיק) שכל ליד נשלח אליהן כ-JSON (CRM / Make / Zapier) - תמיד מיידית
+ * סיכומים: טריגר שעתי (runLeadDigests) בודק אם הגיע המועד לפי ההגדרה הכללית ולפי התדירות של כל לקוח
+ * (עמודה "תדירות מיילים" ברישום הלקוחות; ריק = כמו הכללי). לקוח "מיידי" מקבל כל ליד גם כשהכללי הוא סיכום.
+ * הטריגר מותקן ב-authorizeServices (בעורך) או בשמירת ההגדרות מהפאנל (דורש הרשאת script.scriptapp במניפסט).
  * גישה לפאנל (Script Properties, נערכות מהפאנל -> "גישה"):
  *   GOOGLE_CLIENT_ID - OAuth Client ID (Web) לכפתור "כניסה עם גוגל"
  *   ALLOWED_DOMAIN   - דומיין ארגוני שנכנס אוטומטית (ברירת מחדל 42creative.co.il)
@@ -42,6 +50,13 @@ var SYSTEM_COLUMNS = HEADERS.filter(function (h) { return ['שם מלא', 'טל�
 var STANDARD_FIELD_NAMES = ['fullname', 'phone', 'email', 'city', 'website'];
 var SHEET_URL = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID;
 var ROUTING_CACHE_KEY = 'lead-routing-v1';
+
+/* מתי נשלח מייל על לידים (ההגדרה הכללית NOTIFY_MODE, ו"תדירות מיילים" לכל לקוח) */
+var NOTIFY_MODES = ['weekly', 'daily', 'instant', 'off'];
+var NOTIFY_MODE_LABELS = { weekly: 'סיכום שבועי', daily: 'סיכום יומי', instant: 'מייל מיידי על כל ליד', off: 'בלי מיילים' };
+var DAY_NAMES = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+var DIGEST_TRIGGER_FN = 'runLeadDigests';
+var DIGEST_MAX_ROWS = 150; // מקסימום שורות לידים בגוף מייל הסיכום (השאר - בגיליון)
 
 /* ---------- GET: לידים מהאתר (ללא סיסמה) ---------- */
 function doGet(e) {
@@ -128,6 +143,8 @@ function doPost(e) {
         return getRecentLeads(req);
       case 'deleteTestLeads':
         return deleteTestLeads();
+      case 'sendDigestNow':
+        return sendDigestNow(req, props, user);
       default:
         return jsonResponse({ success: false, message: 'פעולה לא מוכרת' });
     }
@@ -260,6 +277,7 @@ function checkServices() {
   try { MailApp.getRemainingDailyQuota(); out.mail = { ok: true }; } catch (e) { out.mail = { ok: false, message: String(e) }; }
   try { DriveApp.getRootFolder().getName(); out.drive = { ok: true }; } catch (e) { out.drive = { ok: false, message: String(e) }; }
   try { SpreadsheetApp.openById(SHEET_ID).getName(); out.sheets = { ok: true }; } catch (e) { out.sheets = { ok: false, message: String(e) }; }
+  out.triggers = digestTriggerStatus(); // טריגר שעתי לסיכומי הלידים (דורש script.scriptapp)
   return out;
 }
 
@@ -276,7 +294,9 @@ function authorizeServices() {
   UrlFetchApp.fetch('https://api.github.com', { muteHttpExceptions: true });
   MailApp.getRemainingDailyQuota();
   DriveApp.getRootFolder().getName();
-  Logger.log('כל השירותים מורשים');
+  ScriptApp.getProjectTriggers(); // הרשאת טריגרים - לסיכומי הלידים
+  var trig = installDigestTrigger();
+  Logger.log('כל השירותים מורשים. ' + trig.message);
 }
 
 /* ---------- עזרי GitHub ---------- */
@@ -746,7 +766,7 @@ function generateArticle(req, props) {
 /* ---------- לקוחות וקמפיינים: רישום בטאבים "לקוחות" ו"קמפיינים" בגיליון הראשי ---------- */
 var CLIENTS_TAB = 'לקוחות';
 var CAMPAIGNS_TAB = 'קמפיינים';
-var CLIENT_HEADERS = ['מזהה', 'שם', 'מזהה גיליון', 'קישור לגיליון', 'מיילים להתראה', 'webhooks', 'שותף עם', 'נוצר', 'נוצר על ידי'];
+var CLIENT_HEADERS = ['מזהה', 'שם', 'מזהה גיליון', 'קישור לגיליון', 'מיילים להתראה', 'webhooks', 'שותף עם', 'נוצר', 'נוצר על ידי', 'תדירות מיילים'];
 var CAMPAIGN_HEADERS = ['מזהה', 'מזהה לקוח', 'שם', 'טאב בגיליון', 'מיילים להתראה', 'webhooks', 'נוצר', 'נוצר על ידי'];
 var CLIENT_ALL_TAB = 'כל הלידים';
 var REGISTRY_CACHE_KEY = 'registry-v1';
@@ -759,7 +779,13 @@ function registrySheet(ss, name, headers) {
     sh.appendRow(headers);
     sh.getRange(1, 1, 1, headers.length).setFontWeight('bold');
     sh.setFrozenRows(1);
+    return sh;
   }
+  /* עמודות שנוספו לרישום (למשל "תדירות מיילים") מתווספות בסוף שורת הכותרת של רישום קיים */
+  var current = sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getValues()[0].map(function (v) { return String(v).trim(); });
+  while (current.length && !current[current.length - 1]) current.pop();
+  var missing = headers.filter(function (h) { return current.indexOf(h) === -1; });
+  if (missing.length) sh.getRange(1, current.length + 1, 1, missing.length).setValues([missing]).setFontWeight('bold');
   return sh;
 }
 
@@ -786,7 +812,8 @@ function getRegistry(fresh) {
     clients[r['מזהה']] = {
       id: r['מזהה'], name: r['שם'], sheetId: r['מזהה גיליון'], sheetUrl: r['קישור לגיליון'],
       emails: splitList(r['מיילים להתראה']), webhooks: splitList(r['webhooks']), sharedWith: r['שותף עם'],
-      createdAt: r['נוצר'], createdBy: r['נוצר על ידי']
+      createdAt: r['נוצר'], createdBy: r['נוצר על ידי'],
+      notifyMode: normalizeMode(r['תדירות מיילים']) // '' = כמו ההגדרה הכללית
     };
   });
   var campaigns = {};
@@ -836,6 +863,10 @@ function saveClient(req, user) {
   var shareWith = splitList(req.shareWith);
   var bad = validateEmails(emails) || validateHooks(hooks) || validateEmails(shareWith);
   if (bad) return jsonResponse({ success: false, message: bad });
+  /* תדירות המיילים של הלקוח ('' = כמו ההגדרה הכללית) - חלה על המיילים של הלקוח ושל הקמפיינים שלו */
+  var hasMode = Object.prototype.hasOwnProperty.call(req, 'notifyMode');
+  var reqMode = hasMode ? normalizeMode(req.notifyMode) : '';
+  if (hasMode && String(req.notifyMode || '').trim() && !reqMode) return jsonResponse({ success: false, message: 'תדירות מיילים לא מוכרת: ' + req.notifyMode });
 
   var ss = SpreadsheetApp.openById(SHEET_ID);
   var sh = registrySheet(ss, CLIENTS_TAB, CLIENT_HEADERS);
@@ -876,16 +907,26 @@ function saveClient(req, user) {
     .filter(function (x, k, arr) { return arr.indexOf(x) === k; });
 
   if (!id) id = newId('c');
+  var prevMode = existing ? normalizeMode(existing['תדירות מיילים']) : '';
+  var notifyMode = hasMode ? reqMode : prevMode;
   var row = [id, name, sheetId, sheetUrl, emails.join(', '), hooks.join(' '), sharedAll.join(', '),
     existing ? existing['נוצר'] : Utilities.formatDate(new Date(), 'Asia/Jerusalem', 'dd/MM/yyyy HH:mm'),
-    existing ? existing['נוצר על ידי'] : (user ? user.email : '')];
+    existing ? existing['נוצר על ידי'] : (user ? user.email : ''), notifyMode];
   if (rowIndex > 0) sh.getRange(rowIndex, 1, 1, row.length).setValues([row]); else sh.appendRow(row);
   clearRegistryCache();
+  var generalMode = getNotifySettings().mode;
+  noteModeChange(id, existing ? (prevMode || generalMode) : '', notifyMode || generalMode);
 
   var msg = created ? 'הלקוח נוצר ונפתח לו גיליון לידים חדש' : 'הלקוח נשמר';
   if (shared.length) msg += '. הגיליון שותף עם ' + shared.join(', ');
   if (shareError) msg += '. שיתוף לא הושלם: ' + shareError;
-  return jsonResponse({ success: true, message: msg, id: id, sheetUrl: sheetUrl, shared: shared });
+  msg += '. מיילים ללקוח: ' + NOTIFY_MODE_LABELS[notifyMode || generalMode] + (notifyMode ? '' : ' (לפי ההגדרה הכללית)');
+  var out = { success: true, message: msg, id: id, sheetUrl: sheetUrl, shared: shared, notifyMode: notifyMode };
+  if (isDigestMode(notifyMode || generalMode)) {
+    var trig = installDigestTrigger();
+    if (!trig.ok) out.warning = trig.message;
+  }
+  return jsonResponse(out);
 }
 
 /** יצירה/עדכון קמפיין תחת לקוח. הטאב בגיליון של הלקוח נפתח מיד */
@@ -1039,9 +1080,8 @@ function addLead(p) {
   cache.put('lead:' + leadId, '1', 3600);
   if (phone) cache.put('phone:' + phone, '1', 86400);
 
-  /* העברה ל-webhooks (כלליים + של הכתבה) והתראה במייל (כללי + של הכתבה). כישלון שם לא מכשיל את הליד */
+  /* העברה ל-webhooks (כלליים + של הלקוח + של הקמפיין + של הכתבה) - תמיד מיידית. כישלון שם לא מכשיל את הליד */
   var route = {
-    emails: [].concat(client ? client.emails : [], campaign ? campaign.emails : [], routing.emails || []),
     webhooks: [].concat(client ? client.webhooks : [], campaign ? campaign.webhooks : [], routing.webhooks || [])
   };
   var forwarded = forwardLead(row, flags, route, extras);
@@ -1051,14 +1091,24 @@ function addLead(p) {
       if (col > 0) targets[k].sheet.getRange(targets[k].rowIndex, col).setValue(forwarded);
     }
   }
-  var notified = notifyLead(row, flags, route, extras);
+
+  /* מייל: מיידי רק למי שהתדירות שלו "מייל מיידי על כל ליד" - הסוכנות (ומיילים ברמת כתבה) לפי ההגדרה הכללית,
+     הלקוח והקמפיינים שלו לפי התדירות של הלקוח (ריק = כמו הכללי). כל השאר מקבלים את הליד בסיכום היומי/השבועי */
+  var settings = getNotifySettings();
+  var clientMode = client ? (client.notifyMode || settings.mode) : settings.mode;
+  var instant = [];
+  if (settings.mode === 'instant') instant = instant.concat(splitList(PropertiesService.getScriptProperties().getProperty('NOTIFY_EMAIL')), routing.emails || []);
+  if (client && clientMode === 'instant') instant = instant.concat(client.emails || [], campaign ? campaign.emails : []);
+  var notified = instant.length ? notifyLead(row, flags, instant, extras) : 0;
 
   var out = { success: true, message: 'הליד נקלט', leadId: leadId };
   if (writeErrors.length) out.warning = writeErrors.join(' | ');
   if (p.test) {
     out.routing = {
       tab: row['יעד'], client: client ? client.name : '', campaign: campaign ? campaign.name : '',
-      clientSheetUrl: client ? client.sheetUrl : '', emails: notified, forwarded: forwarded, warning: out.warning || ''
+      clientSheetUrl: client ? client.sheetUrl : '', emails: notified, forwarded: forwarded, warning: out.warning || '',
+      notifyMode: settings.mode, notifyModeLabel: NOTIFY_MODE_LABELS[settings.mode],
+      clientMode: client ? clientMode : '', clientModeLabel: client ? NOTIFY_MODE_LABELS[clientMode] : ''
     };
   }
   return jsonResponse(out);
@@ -1184,13 +1234,9 @@ function hostOf(url) {
   return m ? m[1] : url;
 }
 
-/** התראה במייל על ליד חדש (אם הוגדר NOTIFY_EMAIL) עם קישורי חיוג ווואטסאפ */
-function notifyLead(row, flags, routing, extras) {
-  var recipients = splitList(PropertiesService.getScriptProperties().getProperty('NOTIFY_EMAIL'));
-  if (routing && routing.emails) {
-    routing.emails.forEach(function (e) { if (recipients.indexOf(e) === -1) recipients.push(e); });
-  }
-  recipients = recipients.filter(function (e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); });
+/** מייל מיידי על ליד חדש - לנמענים שהתדירות שלהם "מייל מיידי על כל ליד" - עם קישורי חיוג ווואטסאפ */
+function notifyLead(row, flags, recipients, extras) {
+  recipients = (recipients || []).filter(function (e, i, arr) { return EMAIL_RE.test(e) && arr.indexOf(e) === i; });
   if (!recipients.length) return 0;
   var to = recipients.join(',');
   try {
@@ -1221,6 +1267,394 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"]/g, function (c) {
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
   });
+}
+
+/* ---------- מתי נשלח מייל על לידים: מיידי / סיכום יומי / סיכום שבועי / בלי ---------- */
+/** ההגדרה הכללית מ-Script Properties. ברירת מחדל: סיכום שבועי ביום ראשון בסביבות 08:00, נשלח גם כשאין לידים */
+function getNotifySettings() {
+  var props = PropertiesService.getScriptProperties();
+  var day = parseInt(props.getProperty('NOTIFY_DAY'), 10);
+  var hour = parseInt(props.getProperty('NOTIFY_HOUR'), 10);
+  var empty = props.getProperty('NOTIFY_EMPTY');
+  return {
+    mode: normalizeMode(props.getProperty('NOTIFY_MODE')) || 'weekly',
+    day: isNaN(day) || day < 0 || day > 6 ? 0 : day,
+    hour: isNaN(hour) || hour < 0 || hour > 23 ? 8 : hour,
+    empty: empty === null || empty === '' ? true : empty === '1'
+  };
+}
+
+/** מפתח תדירות תקין ('' אם לא מוכר). מקבל גם מילים בעברית שנכתבו ידנית בעמודה "תדירות מיילים" ברישום הלקוחות */
+function normalizeMode(v) {
+  v = String(v || '').trim().toLowerCase();
+  var he = { 'מיידי': 'instant', 'יומי': 'daily', 'שבועי': 'weekly', 'בלי': 'off', 'ללא': 'off', 'כבוי': 'off' };
+  if (he[v]) return he[v];
+  return NOTIFY_MODES.indexOf(v) > -1 ? v : '';
+}
+
+function isDigestMode(mode) { return mode === 'weekly' || mode === 'daily'; }
+function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+function describeSchedule(s) {
+  if (s.mode === 'weekly') return 'סיכום שבועי בכל יום ' + DAY_NAMES[s.day] + ' בסביבות ' + pad2(s.hour) + ':00';
+  if (s.mode === 'daily') return 'סיכום יומי בסביבות ' + pad2(s.hour) + ':00';
+  if (s.mode === 'instant') return 'מייל מיידי על כל ליד';
+  return 'בלי מיילים - הלידים נרשמים בגיליון ונשלחים ל-webhooks בלבד';
+}
+
+/** המועד האחרון (עד now) שבו הסיכום היה אמור לצאת: שבועי - היום והשעה שנבחרו, יומי - השעה שנבחרה. בשעון הסקריפט (ישראל) */
+function lastScheduledTime(mode, s, now) {
+  var t = new Date(now.getFullYear(), now.getMonth(), now.getDate(), s.hour, 0, 0, 0);
+  if (mode === 'weekly') {
+    t.setDate(t.getDate() - ((now.getDay() - s.day + 7) % 7));
+    if (t > now) t.setDate(t.getDate() - 7);
+  } else if (t > now) {
+    t.setDate(t.getDate() - 1);
+  }
+  return t;
+}
+
+function nextScheduledTime(mode, s, now) {
+  var t = lastScheduledTime(mode, s, now);
+  t.setDate(t.getDate() + (mode === 'weekly' ? 7 : 1));
+  return t;
+}
+
+function fmtDT(d) { return Utilities.formatDate(d, 'Asia/Jerusalem', 'dd/MM/yyyy HH:mm'); }
+
+function fmtPeriod(start, end) {
+  var tz = 'Asia/Jerusalem';
+  var sd = Utilities.formatDate(start, tz, 'dd/MM/yyyy');
+  if (sd === Utilities.formatDate(end, tz, 'dd/MM/yyyy')) return sd + ' ' + Utilities.formatDate(start, tz, 'HH:mm') + '-' + Utilities.formatDate(end, tz, 'HH:mm');
+  return Utilities.formatDate(start, tz, 'dd/MM HH:mm') + ' - ' + Utilities.formatDate(end, tz, 'dd/MM/yyyy HH:mm');
+}
+
+/** כשקבוצה עוברת לתדירות סיכום (או שעדיין אין לה סימון תקופה) - התקופה מתחילה עכשיו והסיכום הראשון יוצא במועד הבא */
+function noteModeChange(key, oldMode, newMode) {
+  if (!isDigestMode(newMode)) return;
+  var props = PropertiesService.getScriptProperties();
+  if (!isDigestMode(oldMode) || !props.getProperty('DIGEST_LAST:' + key)) props.setProperty('DIGEST_LAST:' + key, new Date().toISOString());
+}
+
+/** קבוצות הסיכום: 'general' = מיילי הסוכנות (+ מיילים ברמת כתבה) לפי ההגדרה הכללית; לכל לקוח קבוצה לפי התדירות שלו */
+function digestGroups(settings, reg) {
+  var groups = [{ key: 'general', label: 'הסוכנות', mode: settings.mode }];
+  Object.keys(reg.clients).forEach(function (id) {
+    var c = reg.clients[id];
+    groups.push({ key: id, label: c.name, mode: c.notifyMode || settings.mode, client: c });
+  });
+  return groups;
+}
+
+/** הנמענים של קבוצה. לכל נמען מסנן ללידים שרלוונטיים לו (null = כל הלידים) וקישור לגיליון שלו */
+function groupRecipients(g, reg, routingMap) {
+  var list = [];
+  if (g.key === 'general') {
+    splitList(PropertiesService.getScriptProperties().getProperty('NOTIFY_EMAIL')).forEach(function (e) {
+      list.push({ email: e, filter: null, sheetUrl: SHEET_URL, scope: '' });
+    });
+    Object.keys(routingMap || {}).forEach(function (articleId) {
+      (routingMap[articleId].emails || []).forEach(function (e) {
+        list.push({ email: e, filter: function (r) { return r['כתבה'] === articleId; }, sheetUrl: '', scope: 'הכתבה ' + articleId });
+      });
+    });
+    return list;
+  }
+  var c = g.client;
+  (c.emails || []).forEach(function (e) {
+    list.push({ email: e, filter: function (r) { return r['לקוח'] === c.name; }, sheetUrl: c.sheetUrl, scope: c.name });
+  });
+  Object.keys(reg.campaigns).forEach(function (kid) {
+    var k = reg.campaigns[kid];
+    if (k.clientId !== c.id) return;
+    (k.emails || []).forEach(function (e) {
+      list.push({ email: e, filter: function (r) { return r['לקוח'] === c.name && r['קמפיין'] === k.name; }, sheetUrl: c.sheetUrl, scope: c.name + ' / ' + k.name });
+    });
+  });
+  return list;
+}
+
+/**
+ * הטריגר השעתי (וגם "שליחת הסיכום עכשיו" עם force): לכל קבוצה בתדירות סיכום בודק אם הגיע המועד ועוד לא נשלח,
+ * קורא פעם אחת את הלידים של התקופה מהטאב הראשי (בלי לידי בדיקה) ושולח לכל נמען את הלידים שלו.
+ * קבוצה בלי סימון תקופה מקבלת סימון "עכשיו" ותסוכם במועד הבא (בלי force). הסימון מתקדם גם אם מייל בודד נכשל,
+ * כדי שלא יישלחו כפילויות בכל שעה; הכישלון נרשם ביומן הריצה שמוצג בפאנל.
+ */
+function runLeadDigests(opts) {
+  opts = opts || {};
+  var force = Boolean(opts.force);
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) return { skipped: 'ריצה אחרת של הסיכום עדיין פעילה - נסו שוב בעוד דקה', groups: [], errors: [], sent: 0, leads: 0 };
+  var log = { at: new Date().toISOString(), force: force, groups: [], sent: 0, leads: 0, errors: [] };
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var settings = getNotifySettings();
+    var now = new Date();
+    var reg = getRegistry(true);
+    var due = [];
+    digestGroups(settings, reg).forEach(function (g) {
+      if (!isDigestMode(g.mode)) return;
+      var marker = props.getProperty('DIGEST_LAST:' + g.key);
+      var lastSent = marker ? new Date(marker) : null;
+      if (lastSent && isNaN(lastSent.getTime())) lastSent = null;
+      var start;
+      if (!lastSent) {
+        if (!force) { props.setProperty('DIGEST_LAST:' + g.key, now.toISOString()); return; }
+        start = new Date(now.getTime() - (g.mode === 'weekly' ? 7 : 1) * 86400000);
+      } else {
+        if (!force && lastSent >= lastScheduledTime(g.mode, settings, now)) return; // התקופה הנוכחית כבר סוכמה
+        start = lastSent;
+      }
+      if (start >= now) return;
+      due.push({ group: g, start: start });
+    });
+    if (!due.length) {
+      log.note = force ? 'אין קבוצה בתדירות סיכום (ההגדרה הכללית או לקוח) שיש לה מה לשלוח' : 'עוד לא הגיע מועד הסיכום';
+      return finishDigestLog(log);
+    }
+    var routingMap = due.some(function (d) { return d.group.key === 'general'; }) ? loadRoutingMap() : {};
+    var earliest = due.reduce(function (m, d) { return d.start < m ? d.start : m; }, now);
+    var leads = readLeadsBetween(earliest, now);
+    due.forEach(function (d) {
+      var g = d.group;
+      var entry = { key: g.key, label: g.label, mode: g.mode, from: d.start.toISOString(), leads: 0, recipients: 0, emails: 0, skippedEmpty: 0 };
+      try {
+        var rows = leads.filter(function (r) { return r._ts >= d.start; });
+        entry.leads = rows.length;
+        var res = sendGroupDigest(g, groupRecipients(g, reg, routingMap), rows, d.start, now, settings);
+        entry.recipients = res.recipients; entry.emails = res.emails; entry.skippedEmpty = res.skippedEmpty;
+        if (res.failed.length) { entry.error = res.failed.join(' | ').slice(0, 300); log.errors.push(g.label + ': ' + entry.error); }
+        log.sent += res.emails;
+        log.leads += rows.length;
+      } catch (e) {
+        entry.error = String(e).slice(0, 300);
+        log.errors.push(g.label + ': ' + entry.error);
+      }
+      props.setProperty('DIGEST_LAST:' + g.key, now.toISOString());
+      log.groups.push(entry);
+    });
+    return finishDigestLog(log);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function finishDigestLog(log) {
+  log.errors = log.errors.slice(0, 5);
+  try { PropertiesService.getScriptProperties().setProperty('DIGEST_LAST_RUN', JSON.stringify(log)); } catch (e) { /* לא קריטי */ }
+  return log;
+}
+
+/** שולח לכל נמען בקבוצה מייל אחד עם הלידים שלו (נמען שמופיע גם בלקוח וגם בקמפיין מקבל את האיחוד) */
+function sendGroupDigest(g, recipients, rows, start, end, settings) {
+  var byEmail = {};
+  recipients.forEach(function (r) {
+    if (!EMAIL_RE.test(r.email)) return;
+    var key = r.email.toLowerCase();
+    var cur = byEmail[key] || (byEmail[key] = { email: r.email, all: false, filters: [], sheetUrl: '', scopes: [] });
+    if (r.filter) cur.filters.push(r.filter); else cur.all = true;
+    if (!cur.sheetUrl && r.sheetUrl) cur.sheetUrl = r.sheetUrl;
+    if (r.scope && cur.scopes.indexOf(r.scope) === -1) cur.scopes.push(r.scope);
+  });
+  var out = { recipients: 0, emails: 0, skippedEmpty: 0, failed: [] };
+  Object.keys(byEmail).forEach(function (key) {
+    var rec = byEmail[key];
+    out.recipients++;
+    var mine = rec.all ? rows : rows.filter(function (r) { return rec.filters.some(function (f) { return f(r); }); });
+    if (!mine.length && !settings.empty) { out.skippedEmpty++; return; }
+    var isAgency = g.key === 'general' && rec.all;
+    var mail = buildDigestMail({
+      mode: g.mode, rows: mine, start: start, end: end, sheetUrl: rec.sheetUrl, isAgency: isAgency,
+      scope: isAgency ? '' : (rec.all ? g.label : rec.scopes.join(', '))
+    });
+    try {
+      MailApp.sendEmail({ to: rec.email, subject: mail.subject, htmlBody: mail.html, name: 'Channel 19 לידים' });
+      out.emails++;
+    } catch (e) { out.failed.push(rec.email + ': ' + e); }
+  });
+  return out;
+}
+
+/** גוף מייל הסיכום: מספרים, פילוח (לסוכנות לפי לקוח וקמפיין, ללקוח לפי קמפיין) וטבלת הלידים מהחדש לישן */
+function buildDigestMail(o) {
+  var kind = o.mode === 'daily' ? 'יומי' : 'שבועי';
+  var period = fmtPeriod(o.start, o.end);
+  var n = o.rows.length;
+  var title = 'סיכום לידים ' + kind + (o.scope ? ' - ' + o.scope : '');
+  var subject = title + ': ' + (n ? n + ' לידים' : 'לא נכנסו לידים') + ' (' + period + ')';
+  var newCount = o.rows.filter(function (r) { return String(r['סטטוס']) === 'חדש'; }).length;
+  var dupCount = o.rows.filter(function (r) { return String(r['דגלים'] || '').indexOf('כפול') > -1; }).length;
+
+  var breakdown = '';
+  if (n) {
+    var counts = {};
+    o.rows.forEach(function (r) {
+      var key = o.isAgency
+        ? (r['לקוח'] || 'בלי לקוח') + (r['קמפיין'] ? ' / ' + r['קמפיין'] : (r['כתבה'] ? ' / ' + r['כתבה'] : ''))
+        : (r['קמפיין'] || r['כתבה'] || 'כללי');
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    var keys = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; });
+    if (keys.length > 1 || o.isAgency) {
+      breakdown = '<h3 style="margin:18px 0 6px;font-size:15px">' + (o.isAgency ? 'לפי לקוח וקמפיין' : 'לפי קמפיין') + '</h3>' +
+        '<table cellpadding="6" style="border-collapse:collapse">' +
+        keys.map(function (k) {
+          return '<tr><td style="border-bottom:1px solid #eee">' + escapeHtml(k) + '</td><td style="border-bottom:1px solid #eee"><b>' + counts[k] + '</b></td></tr>';
+        }).join('') + '</table>';
+    }
+  }
+
+  var cols = o.isAgency
+    ? ['תאריך', 'שעה', 'שם מלא', 'טלפון', 'עיר', 'לקוח', 'קמפיין', 'כתבה', 'utm_source', 'סטטוס']
+    : ['תאריך', 'שעה', 'שם מלא', 'טלפון', 'דוא"ל', 'עיר', 'קמפיין', 'utm_source', 'סטטוס'];
+  var shown = o.rows.slice().reverse().slice(0, DIGEST_MAX_ROWS);
+  var th = '<th style="text-align:right;background:#f4f4f4;border-bottom:1px solid #ddd;white-space:nowrap">';
+  var td = '<td style="border-bottom:1px solid #eee;white-space:nowrap">';
+  var table = '<table cellpadding="5" style="border-collapse:collapse;font-size:13px"><tr>' +
+    cols.map(function (c) { return th + escapeHtml(c) + '</th>'; }).join('') + '</tr>' +
+    shown.map(function (r) {
+      return '<tr>' + cols.map(function (c) {
+        var v = String(r[c] == null ? '' : r[c]);
+        if (c === 'טלפון') {
+          v = v.replace(/^'/, '');
+          if (/^0\d{8,9}$/.test(v)) return td + '<a href="tel:' + v + '">' + v + '</a> <a href="https://wa.me/972' + v.slice(1) + '" title="וואטסאפ">💬</a></td>';
+        }
+        return td + escapeHtml(v) + '</td>';
+      }).join('') + '</tr>';
+    }).join('') + '</table>' +
+    (n > shown.length ? '<p style="color:#666">מוצגים ' + shown.length + ' הלידים האחרונים מתוך ' + n + ' - השאר בגיליון.</p>' : '');
+
+  var html = '<div dir="rtl" style="font-family:Arial,sans-serif;font-size:15px;color:#222">' +
+    (o.preview ? '<div style="background:#fff8e6;border:1px solid #f5d982;padding:8px 12px;border-radius:8px;margin-bottom:12px">תצוגה מקדימה - כך נראה הסיכום ה' + kind + ' של הסוכנות. נשלח רק אליכם ולא משנה את מועד הסיכום הבא.</div>' : '') +
+    '<h2 style="margin:0 0 4px">' + escapeHtml(title) + '</h2>' +
+    '<div style="color:#666;margin-bottom:14px">Channel 19 · ' + period + '</div>' +
+    '<p style="font-size:18px;margin:0 0 6px"><b>' + n + '</b> לידים' +
+    (n && newCount ? ', מתוכם <b>' + newCount + '</b> עדיין בסטטוס "חדש"' : '') +
+    (dupCount ? ' (' + dupCount + ' סומנו כפולים)' : '') + '</p>' +
+    (n ? breakdown + '<h3 style="margin:18px 0 6px;font-size:15px">הלידים</h3>' + table : '<p>לא נכנסו לידים בתקופה הזו.</p>') +
+    (o.sheetUrl ? '<p style="margin-top:16px"><a href="' + o.sheetUrl + '">📊 לגיליון הלידים</a></p>' : '') +
+    (o.isAgency ? '<p style="color:#888;font-size:12px">התדירות של המייל הזה (שבועי / יומי / על כל ליד) נקבעת בפאנל הניהול, מסך "לידים".</p>' : '') +
+    '</div>';
+  return { subject: subject, html: html };
+}
+
+/** הלידים מהטאב הראשי שנרשמו בין start (כולל) ל-end (לא כולל), מהישן לחדש, בלי לידי בדיקה. קורא מהסוף בקטעים - בלי לסרוק היסטוריה */
+function readLeadsBetween(start, end) {
+  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) return [];
+  var tz = ss.getSpreadsheetTimeZone() || 'Asia/Jerusalem';
+  var headers = ensureHeaders(sheet);
+  var dateCol = headers.indexOf('תאריך'), timeCol = headers.indexOf('שעה'), flagCol = headers.indexOf('דגלים');
+  if (dateCol === -1) return [];
+  var out = [];
+  var top = sheet.getLastRow();
+  var CHUNK = 400;
+  var tolerance = start.getTime() - 86400000; // שורות מסודרות לפי זמן; יממה של סובלנות לשורות שהוזזו ידנית
+  var done = false;
+  while (top >= 2 && !done) {
+    var from = Math.max(2, top - CHUNK + 1);
+    var values = sheet.getRange(from, 1, top - from + 1, headers.length).getValues();
+    for (var i = values.length - 1; i >= 0; i--) {
+      var v = values[i];
+      var ts = leadTimestamp(v[dateCol], timeCol > -1 ? v[timeCol] : '', tz);
+      if (!ts) continue;
+      if (ts.getTime() < tolerance) { done = true; break; }
+      if (ts < start || ts >= end) continue;
+      if (flagCol > -1 && String(v[flagCol] || '').indexOf('בדיקה') > -1) continue;
+      var r = {};
+      headers.forEach(function (h, k) { r[h] = v[k]; });
+      r['תאריך'] = Utilities.formatDate(ts, 'Asia/Jerusalem', 'dd/MM/yyyy');
+      r['שעה'] = Utilities.formatDate(ts, 'Asia/Jerusalem', 'HH:mm');
+      r._ts = ts;
+      out.push(r);
+    }
+    top = from - 1;
+  }
+  return out.reverse();
+}
+
+/** חותמת זמן של שורה מעמודות התאריך והשעה (טקסט dd/MM/yyyy ו-HH:mm כפי שנרשמו, או תאריך/שעה שהגיליון המיר) */
+function leadTimestamp(dateVal, timeVal, tz) {
+  var ds = dateVal instanceof Date ? Utilities.formatDate(dateVal, tz, 'dd/MM/yyyy') : String(dateVal || '').trim();
+  var m = ds.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (!m) return null;
+  var tsStr = timeVal instanceof Date ? Utilities.formatDate(timeVal, tz, 'HH:mm') : String(timeVal || '').trim();
+  var t = tsStr.match(/^(\d{1,2}):(\d{2})/);
+  var d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]), t ? Number(t[1]) : 0, t ? Number(t[2]) : 0, 0, 0);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/** מפאנל הניהול: preview - הסיכום של התקופה האחרונה למייל של המשתמש המחובר בלבד (בלי לשנות סימונים);
+ *  אחרת - שליחה עכשיו לכל הנמענים של מה שהצטבר מאז הסיכום הקודם (התקופה הבאה מתחילה מעכשיו) */
+function sendDigestNow(req, props, user) {
+  if (req && req.preview) {
+    if (!user || !EMAIL_RE.test(String(user.email || ''))) return jsonResponse({ success: false, message: 'אין כתובת מייל למשתמש המחובר' });
+    var s = getNotifySettings();
+    var mode = isDigestMode(s.mode) ? s.mode : 'weekly';
+    var end = new Date();
+    var start = new Date(end.getTime() - (mode === 'weekly' ? 7 : 1) * 86400000);
+    var rows = readLeadsBetween(start, end);
+    var mail = buildDigestMail({ mode: mode, rows: rows, start: start, end: end, scope: '', sheetUrl: SHEET_URL, isAgency: true, preview: true });
+    MailApp.sendEmail({ to: user.email, subject: '[תצוגה מקדימה] ' + mail.subject, htmlBody: mail.html, name: 'Channel 19 לידים' });
+    return jsonResponse({ success: true, message: 'תצוגה מקדימה של הסיכום (' + rows.length + ' לידים מ-' + fmtDT(start) + ') נשלחה ל-' + user.email });
+  }
+  var log = runLeadDigests({ force: true });
+  if (log.skipped) return jsonResponse({ success: false, message: log.skipped });
+  var parts = log.groups.map(function (g) {
+    return g.label + ': ' + g.leads + ' לידים ל-' + g.emails + ' מיילים' + (g.skippedEmpty ? ' (' + g.skippedEmpty + ' נמענים בלי לידים דולגו)' : '') + (g.error ? ' - שגיאה: ' + g.error : '');
+  });
+  var msg = log.groups.length ? 'הסיכום נשלח. ' + parts.join(' | ') : (log.note || 'לא נשלח סיכום');
+  return jsonResponse({ success: !log.errors.length, message: msg, log: log });
+}
+
+/** מתקין פעם אחת את הטריגר השעתי של הסיכומים (ומסיר כפילויות). דורש הרשאת script.scriptapp - אחרת מחזיר הנחיה */
+function installDigestTrigger() {
+  try {
+    var existing = ScriptApp.getProjectTriggers().filter(function (t) { return t.getHandlerFunction() === DIGEST_TRIGGER_FN; });
+    if (existing.length) {
+      for (var i = 1; i < existing.length; i++) ScriptApp.deleteTrigger(existing[i]);
+      return { ok: true, installed: true, message: 'הטריגר השעתי לסיכומי הלידים מותקן' };
+    }
+    ScriptApp.newTrigger(DIGEST_TRIGGER_FN).timeBased().everyHours(1).create();
+    return { ok: true, installed: true, message: 'הטריגר השעתי לסיכומי הלידים הותקן' };
+  } catch (e) {
+    return {
+      ok: false, installed: false,
+      message: 'הסיכומים האוטומטיים עוד לא פעילים: לסקריפט חסרה הרשאת טריגרים. בעל הסקריפט פותח את העורך, מריץ פעם אחת את authorizeServices ומאשר את כל ההרשאות (' + e + ')'
+    };
+  }
+}
+
+function digestTriggerStatus() {
+  try {
+    var has = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === DIGEST_TRIGGER_FN; });
+    return { ok: true, installed: has, message: has ? 'הטריגר השעתי לסיכומים מותקן' : 'הטריגר לסיכומים עוד לא הותקן - שמירת ההגדרות במסך "לידים" תתקין אותו' };
+  } catch (e) {
+    return { ok: false, installed: false, message: 'חסרה הרשאת טריגרים (script.scriptapp) - יש להריץ authorizeServices בעורך' };
+  }
+}
+
+/** מצב הסיכומים לפאנל: הטריגר, תיאור התדירות, המועד הבא והריצה האחרונה */
+function digestStatus(s) {
+  var props = PropertiesService.getScriptProperties();
+  var lastRun = null;
+  try { lastRun = JSON.parse(props.getProperty('DIGEST_LAST_RUN') || 'null'); } catch (e) { lastRun = null; }
+  var out = { trigger: digestTriggerStatus(), schedule: describeSchedule(s), lastSent: props.getProperty('DIGEST_LAST:general') || '', lastRun: lastRun, next: '', nextLabel: '' };
+  if (isDigestMode(s.mode)) {
+    var now = new Date();
+    var marker = out.lastSent ? new Date(out.lastSent) : null;
+    if (marker && !isNaN(marker.getTime()) && marker < lastScheduledTime(s.mode, s, now)) {
+      out.next = now.toISOString();
+      out.nextLabel = 'בשעה הקרובה (המועד עבר - יישלח בריצה הבאה של הטריגר השעתי)';
+    } else {
+      var next = nextScheduledTime(s.mode, s, now);
+      out.next = next.toISOString();
+      out.nextLabel = 'יום ' + DAY_NAMES[next.getDay()] + ' ' + Utilities.formatDate(next, 'Asia/Jerusalem', 'dd/MM') + ' בסביבות ' + pad2(s.hour) + ':00';
+    }
+    if (!out.trigger.installed) out.nextLabel += ' - בתנאי שהטריגר השעתי מותקן';
+  }
+  return out;
 }
 
 /* ---------- ניתוב לידים לפי כתבה ---------- */
@@ -1304,29 +1738,55 @@ function listTabs() {
 }
 
 function getLeadSettings(props) {
+  var s = getNotifySettings();
   return jsonResponse({
     success: true,
     notifyEmail: props.getProperty('NOTIFY_EMAIL') || '',
+    notifyMode: s.mode, notifyDay: s.day, notifyHour: s.hour, notifyEmpty: s.empty,
+    modeLabels: NOTIFY_MODE_LABELS,
     forwardWebhooks: getForwardUrls().join('\n'),
     sheetUrl: SHEET_URL,
-    tabs: listTabs()
+    scriptUrl: SCRIPT_EDIT_URL,
+    tabs: listTabs(),
+    digest: digestStatus(s)
   });
 }
 
+/** שמירת ההגדרות הכלליות: מיילי הסוכנות, מתי הם נשלחים (תדירות + יום + שעה), webhooks. מתקין את הטריגר השעתי אם צריך */
 function saveLeadSettings(req, props) {
-  var email = String(req.notifyEmail || '').trim();
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return jsonResponse({ success: false, message: 'כתובת המייל לא תקינה' });
-  }
+  var emails = splitList(req.notifyEmail);
+  var badEmail = validateEmails(emails);
+  if (badEmail) return jsonResponse({ success: false, message: badEmail });
   var urls = String(req.forwardWebhooks || '').split(/[\s,]+/).filter(Boolean);
   for (var i = 0; i < urls.length; i++) {
     if (!/^https:\/\/\S+$/.test(urls[i])) {
       return jsonResponse({ success: false, message: 'כתובת webhook לא תקינה (חייבת להתחיל ב-https://): ' + urls[i] });
     }
   }
-  props.setProperty('NOTIFY_EMAIL', email);
+  var prev = getNotifySettings();
+  var mode = Object.prototype.hasOwnProperty.call(req, 'notifyMode') ? normalizeMode(req.notifyMode) : prev.mode;
+  if (!mode) return jsonResponse({ success: false, message: 'תדירות לא מוכרת: ' + req.notifyMode });
+  var day = parseInt(req.notifyDay, 10);
+  var hour = parseInt(req.notifyHour, 10);
+  props.setProperty('NOTIFY_EMAIL', emails.join(', '));
   props.setProperty('FORWARD_WEBHOOKS', urls.join('\n'));
-  return jsonResponse({ success: true, message: 'הגדרות הלידים נשמרו' });
+  props.setProperty('NOTIFY_MODE', mode);
+  props.setProperty('NOTIFY_DAY', String(isNaN(day) || day < 0 || day > 6 ? prev.day : day));
+  props.setProperty('NOTIFY_HOUR', String(isNaN(hour) || hour < 0 || hour > 23 ? prev.hour : hour));
+  if (Object.prototype.hasOwnProperty.call(req, 'notifyEmpty')) props.setProperty('NOTIFY_EMPTY', req.notifyEmpty && req.notifyEmpty !== '0' ? '1' : '0');
+  noteModeChange('general', prev.mode, mode);
+
+  var s = getNotifySettings();
+  var out = { success: true, message: 'הגדרות הלידים נשמרו. ' + describeSchedule(s) + '.' };
+  /* הטריגר השעתי נדרש כשההגדרה הכללית או לקוח כלשהו בתדירות סיכום */
+  var reg = getRegistry(false);
+  var needsTrigger = isDigestMode(mode) || Object.keys(reg.clients).some(function (id) { return isDigestMode(reg.clients[id].notifyMode || mode); });
+  if (needsTrigger) {
+    var trig = installDigestTrigger();
+    if (!trig.ok) out.warning = trig.message;
+  }
+  out.digest = digestStatus(s);
+  return jsonResponse(out);
 }
 
 /** ליד בדיקה שעובר את כל השרשרת (טאבים, מייל, webhooks) ומסומן "בדיקה". עם article - לפי הניתוב של הכתבה */
