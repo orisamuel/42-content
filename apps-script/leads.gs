@@ -531,7 +531,7 @@ function saveArticle(req, props, isUpdate, user) {
     }
     article.createdAt = new Date().toISOString();
     article.createdBy = user ? user.email : '';
-    article.createdVia = req.origin === 'ai' ? 'ai' : 'manual';
+    article.createdVia = ['ai', 'upload'].indexOf(req.origin) > -1 ? req.origin : 'manual';
     manual.articles.unshift(article);
     if (!writeJsonFile(token, manual, 'כתבה חדשה: ' + article.title + ' (' + (user ? user.email : '') + ')')) {
       return jsonResponse({ success: false, message: 'השמירה לגיטהאב נכשלה' + ghDetail() });

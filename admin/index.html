@@ -80,6 +80,10 @@
   .badge.ai { background:#f3e8ff; color:#7e22ce; }
   .badge.manual { background:#e7f8f0; color:#0e7c5a; }
   .badge.promoted { background:#fff4e5; color:#b45309; }
+  .badge.upload { background:#e7f6f8; color:#0e6c7c; }
+  .drop-zone { border:1.5px dashed #c9ced6; border-radius:10px; padding:14px; transition:.15s; }
+  .drop-zone.over { border-color:var(--accent); background:#fff7f8; }
+  .drop-zone .file-name { font-weight:700; }
   .muted { color:var(--muted); }
   .link-btn { background:none; border:0; color:#1d4ed8; cursor:pointer; font-family:inherit; font-size:13px; text-decoration:underline; padding:0 2px; }
   .link-btn.danger { color:#c22733; }
@@ -171,6 +175,25 @@
         </span>
         <div id="edit-meta"></div>
       </div>
+
+      <section class="panel" id="uploadPanel">
+        <h2>העלאת כתבה מקובץ</h2>
+        <div class="drop-zone" id="dropZone">
+          <div class="actions">
+            <button class="btn btn-ghost btn-sm" id="btn-pick-text">📄 קובץ טקסט</button>
+            <button class="btn btn-ghost btn-sm" id="btn-pick-image">🖼️ תמונה ראשית</button>
+            <input type="file" id="up-text" accept=".txt,.md,.markdown,text/plain,text/markdown" style="display:none">
+            <input type="file" id="up-image" accept="image/*" style="display:none">
+            <span class="hint">אפשר גם לגרור לכאן קובץ טקסט ותמונה, יחד או בנפרד.</span>
+          </div>
+          <div class="hint" style="margin-top:8px">
+            קובץ <b>.txt</b> או <b>.md</b>: השורה הראשונה נכנסת לכותרת, הפסקה שאחריה לכותרת המשנה, והשאר לגוף הכתבה.
+            קובץ Word - שומרים אותו כטקסט רגיל (קובץ ← שמירה בשם ← Plain Text), או מעתיקים ומדביקים לגוף הכתבה.
+            אחרי הטעינה עוברים על הטקסט, בוחרים לקוח וקמפיין אם צריך, ומפרסמים.
+          </div>
+          <div class="hint" id="up-status" style="margin-top:6px"></div>
+        </div>
+      </section>
 
       <section class="panel" id="editorPanel">
         <h2>יצירת תוכן עם AI</h2>
@@ -624,7 +647,7 @@
     return d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' +
       d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
   }
-  var HOW = { ai: ['AI + עריכה', 'ai'], manual: ['ידני', 'manual'], promoted: ['הועלה מ-RSS', 'promoted'], rss: ['RSS אוטומטי', 'rss'] };
+  var HOW = { ai: ['AI + עריכה', 'ai'], upload: ['הועלה מקובץ', 'upload'], manual: ['ידני', 'manual'], promoted: ['הועלה מ-RSS', 'promoted'], rss: ['RSS אוטומטי', 'rss'] };
   function badge(via) {
     var h = HOW[via] || ['לא ידוע', ''];
     var b = document.createElement('span');
@@ -1055,7 +1078,7 @@
       var a = res.article;
       editingId = a.id;
       editingOriginal = a;
-      articleOrigin = a.createdVia === 'ai' ? 'ai' : 'manual';
+      articleOrigin = HOW[a.createdVia] ? a.createdVia : 'manual';
       $('f-title').value = a.title || '';
       $('f-subtitle').value = a.subtitle || '';
       $('f-category').value = a.category || CATEGORIES[0];
@@ -1119,6 +1142,7 @@
     fillClientSelects('', '');
     setFields(null);
     setPreviewImg('');
+    upStatus('');
   }
 
   $('btn-cancel-edit').addEventListener('click', function () {
@@ -1169,14 +1193,19 @@
   $('f-image').addEventListener('change', function () { setPreviewImg(this.value.trim()); });
   $('btn-upload').addEventListener('click', function () { $('f-file').click(); });
 
-  $('f-file').addEventListener('change', function () {
-    var file = this.files[0];
+  /** מקטין ל-1600px, מעלה לריפו וממלא את שדה התמונה. משמש גם את "העלאה מהמחשב" וגם את בלוק ההעלאה מקובץ */
+  function uploadImageFile(file, btn) {
     if (!file) return;
-    var btn = $('btn-upload');
-    var done = busy(btn, 'מעלה...');
+    if (file.type && file.type.indexOf('image/') !== 0) {
+      showStatus('הקובץ "' + file.name + '" אינו תמונה.', false);
+      return;
+    }
+    var done = btn ? busy(btn, 'מעלה...') : function () {};
     var reader = new FileReader();
+    reader.onerror = function () { showStatus('לא ניתן לקרוא את הקובץ "' + file.name + '".', false); done(); };
     reader.onload = function (ev) {
       var img = new Image();
+      img.onerror = function () { showStatus('הקובץ "' + file.name + '" אינו תמונה תקינה.', false); done(); };
       img.onload = function () {
         var scale = Math.min(1, 1600 / img.width);
         var canvas = document.createElement('canvas');
@@ -1190,6 +1219,7 @@
             if (!res.success) throw new Error(res.message);
             $('f-image').value = res.url;
             if (!$('f-credit').value) $('f-credit').value = DEFAULT_AUTHOR;
+            upStatus('התמונה "' + file.name + '" הועלתה.');
             showStatus('התמונה הועלתה! (תהיה זמינה באתר תוך 2-3 דקות, התצוגה המקדימה מקומית)', true);
           })
           .catch(function (err) { fail(err, 'שגיאה בהעלאה'); })
@@ -1198,8 +1228,107 @@
       img.src = ev.target.result;
     };
     reader.readAsDataURL(file);
+  }
+
+  $('f-file').addEventListener('change', function () {
+    uploadImageFile(this.files[0], $('btn-upload'));
     this.value = '';
   });
+
+  /* ---------- העלאת כתבה מקובץ ---------- */
+  var TEXT_EXT_RE = /\.(txt|md|markdown|text)$/i;
+  var OFFICE_EXT_RE = /\.(docx?|pdf|rtf|odt|pages)$/i;
+  var MAX_TEXT_BYTES = 1024 * 1024;
+
+  function upStatus(msg, bad) {
+    var el = $('up-status');
+    el.textContent = msg || '';
+    el.style.color = bad ? '#c22733' : 'var(--muted)';
+  }
+
+  function stripMarks(line) {
+    return String(line || '').replace(/^#{1,6}\s*/, '').replace(/^\*\*([\s\S]*)\*\*$/, '$1').trim();
+  }
+
+  /**
+   * קובץ טקסט -> כותרת, כותרת משנה וגוף.
+   * שורה ראשונה = כותרת; פסקה קצרה אחריה (אם יש עוד תוכן) = כותרת משנה; השאר = גוף.
+   * קובץ בלי שורות ריקות (למשל Word ששמור כטקסט) - כל שורה היא פסקה.
+   */
+  function parseArticleText(raw) {
+    var text = String(raw || '').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').trim();
+    if (!text) return null;
+    var blocks = (/\n{2,}/.test(text) ? text.split(/\n{2,}/) : text.split('\n'))
+      .map(function (b) { return b.trim(); })
+      .filter(Boolean);
+    if (!blocks.length) return null;
+
+    var head = blocks.shift().split('\n');
+    var title = stripMarks(head.shift());
+    if (head.length) blocks.unshift(head.join('\n').trim());
+
+    var subtitle = '';
+    if (blocks.length > 1 && blocks[0].indexOf('\n') === -1 && blocks[0].length <= 300 &&
+        !/^(#{1,6}\s|[-*+]\s|>\s|\d+[.)]\s|!\[)/.test(blocks[0])) {
+      subtitle = stripMarks(blocks.shift());
+    }
+    return { title: title, subtitle: subtitle, body: blocks.join('\n\n') };
+  }
+
+  function loadTextFile(file) {
+    if (!file) return;
+    var isText = TEXT_EXT_RE.test(file.name) || (file.type && file.type.indexOf('text/') === 0);
+    if (OFFICE_EXT_RE.test(file.name) || (file.type && /officedocument|msword|pdf/.test(file.type))) {
+      upStatus('הקובץ "' + file.name + '" אינו טקסט רגיל. שמרו אותו כ-txt (קובץ ← שמירה בשם ← Plain Text) או העתיקו את התוכן והדביקו בגוף הכתבה.', true);
+      return;
+    }
+    if (!isText) { upStatus('אפשר להעלות קובץ .txt או .md בלבד.', true); return; }
+    if (file.size > MAX_TEXT_BYTES) { upStatus('הקובץ גדול מדי (מעל 1MB).', true); return; }
+
+    var reader = new FileReader();
+    reader.onerror = function () { upStatus('לא ניתן לקרוא את הקובץ "' + file.name + '".', true); };
+    reader.onload = function (ev) {
+      var parsed = parseArticleText(ev.target.result);
+      if (!parsed || !parsed.title) { upStatus('הקובץ "' + file.name + '" ריק או שלא נמצא בו טקסט.', true); return; }
+      var filled = $('f-title').value.trim() || $('f-subtitle').value.trim() || $('f-body').value.trim();
+      if (filled && !confirm('הטופס כבר מכיל תוכן. להחליף אותו בתוכן מהקובץ "' + file.name + '"?')) return;
+
+      $('f-title').value = parsed.title;
+      $('f-subtitle').value = parsed.subtitle;
+      $('f-body').value = parsed.body;
+      if (!editingId) articleOrigin = 'upload';
+      var words = parsed.body ? parsed.body.split(/\s+/).filter(Boolean).length : 0;
+      upStatus('נטען מ-"' + file.name + '": כותרת' + (parsed.subtitle ? ', כותרת משנה' : '') + ' וגוף של כ-' + words + ' מילים.');
+      showStatus('הכתבה נטענה מהקובץ. עברו על הטקסט, הוסיפו תמונה וטופס לידים אם צריך - ופרסמו.', true);
+      $('f-title').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+    reader.readAsText(file, 'UTF-8');
+  }
+
+  function routeDroppedFile(file) {
+    if (file.type && file.type.indexOf('image/') === 0) uploadImageFile(file, $('btn-pick-image'));
+    else loadTextFile(file);
+  }
+
+  $('btn-pick-text').addEventListener('click', function () { $('up-text').click(); });
+  $('btn-pick-image').addEventListener('click', function () { $('up-image').click(); });
+  $('up-text').addEventListener('change', function () { loadTextFile(this.files[0]); this.value = ''; });
+  $('up-image').addEventListener('change', function () { uploadImageFile(this.files[0], $('btn-pick-image')); this.value = ''; });
+
+  (function () {
+    var dz = $('dropZone');
+    ['dragenter', 'dragover'].forEach(function (name) {
+      dz.addEventListener(name, function (e) { e.preventDefault(); dz.classList.add('over'); });
+    });
+    ['dragleave', 'dragend', 'drop'].forEach(function (name) {
+      dz.addEventListener(name, function (e) { e.preventDefault(); dz.classList.remove('over'); });
+    });
+    dz.addEventListener('drop', function (e) {
+      var files = (e.dataTransfer && e.dataTransfer.files) || [];
+      if (!files.length) return;
+      for (var i = 0; i < files.length; i++) routeDroppedFile(files[i]);
+    });
+  })();
 
   $('btn-genimg').addEventListener('click', function () {
     var title = $('f-title').value.trim() || $('ai-topic').value.trim();
