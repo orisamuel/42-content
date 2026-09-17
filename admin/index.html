@@ -44,6 +44,12 @@
   #status.err { display:block; background:#fdeaec; color:#c22733; border:1px solid #f5c2c7; white-space:pre-wrap; }
   #status a { color:inherit; font-weight:800; text-decoration:underline; }
   #leadFields { display:none; padding:14px; background:#f7f8fa; border-radius:10px; margin-top:10px; }
+  #pxFields { display:none; padding:14px; background:#f7f8fa; border-radius:10px; margin-top:10px; }
+  .code-box { min-height:110px; direction:ltr; text-align:left; font-size:13px; line-height:1.55;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,'Courier New',monospace; }
+  .note { background:#fff8e6; border:1px solid #f5d982; border-radius:8px; padding:8px 11px;
+    font-size:12.5px; color:#7a5b00; margin-top:12px; }
+  code { background:#eef0f3; border-radius:5px; padding:1px 5px; font-size:12.5px; direction:ltr; display:inline-block; }
   #editBar { display:none; padding:10px 14px; background:#fff8e6; border:1px solid #f5d982; border-radius:10px;
     font-weight:600; font-size:14px; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px; }
   #editBar.on { display:flex; }
@@ -292,6 +298,48 @@
           <div class="hint">הטקסט של כל שדה הוא מה שהגולש רואה בתוכו (placeholder) וגם שם העמודה בגיליון. אפשר לשנות אותו, לסמן חובה, ולהוסיף שדות משלכם, כולל בחירה מרשימה.</div>
           <div id="l-fields"></div>
           <button type="button" class="btn btn-ghost btn-sm" id="btn-add-field" style="margin-top:6px">+ הוספת שדה</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>פיקסלים ומעקב</h2>
+        <label class="check"><input type="checkbox" id="px-on"> הוסף פיקסלים והטמעות מעקב לכתבה הזו</label>
+        <div id="pxFields">
+          <div class="hint">הפיקסלים שכאן נטענים בעמוד הכתבה הזו בלבד, בנוסף לפיקסלים הכלליים של האתר. אחרי שליחת טופס לידים נשלח אליהם אוטומטית אירוע המרה. אפשר להדביק בשדה את קוד ההטמעה המלא שקיבלתם - המזהה יישלף ממנו לבד.</div>
+          <div class="row">
+            <div>
+              <label>פיקסל מטא (פייסבוק / אינסטגרם)</label>
+              <input type="text" id="px-meta" placeholder="ספרות בלבד, למשל 123456789012345" dir="ltr">
+              <div class="hint">Events Manager ← Data sources ← הפיקסל ← Pixel ID</div>
+            </div>
+            <div>
+              <label>גוגל (Analytics 4 / Ads)</label>
+              <input type="text" id="px-ga4" placeholder="G-XXXXXXXXXX או AW-XXXXXXXXX" dir="ltr">
+              <div class="hint">מזהה מדידה של GA4 או מזהה קונברז'ן של Google Ads</div>
+            </div>
+          </div>
+          <div class="row">
+            <div>
+              <label>טאבולה (Account ID)</label>
+              <input type="text" id="px-taboola" placeholder="מספר החשבון, ספרות בלבד" dir="ltr">
+              <div class="hint">בטאבולה: Tracking ← Setup Pixel</div>
+            </div>
+            <div>
+              <label>אאוטבריין (OB_ADV_ID)</label>
+              <input type="text" id="px-outbrain" placeholder="מזהה המפרסם" dir="ltr">
+              <div class="hint">באאוטבריין: Conversions ← Install Pixel</div>
+            </div>
+          </div>
+
+          <label>קוד הטמעה נוסף</label>
+          <div class="hint">לכל פלטפורמה שאין לה שדה למעלה: טיקטוק, לינקדאין, Google Tag Manager, Clarity, אימות דומיין וכו'. מדביקים את הקוד המלא כפי שהתקבל, כולל תגי &lt;script&gt;. הקוד נכנס ל-&lt;head&gt; של הכתבה הזו בלבד (בלוק &lt;noscript&gt; יורד אוטומטית לגוף העמוד).</div>
+          <textarea id="px-head" class="code-box" dir="ltr" spellcheck="false" placeholder="&lt;!-- TikTok Pixel --&gt;&#10;&lt;script&gt;&#10;  ...&#10;&lt;/script&gt;"></textarea>
+
+          <label>קוד המרה אחרי שליחת טופס</label>
+          <div class="hint">JavaScript בלבד, בלי תגי script. רץ רק אחרי שליחה מוצלחת של הטופס. המשתנה <code>lead</code> מכיל campaign, article ו-leadId. לפיקסלים שמולאו למעלה אין צורך בזה - אירוע ההמרה נשלח אליהם לבד.</div>
+          <textarea id="px-conv" class="code-box" dir="ltr" spellcheck="false" placeholder="ttq.track('SubmitForm', { content_name: lead.campaign });"></textarea>
+
+          <div class="note">הקוד שמדביקים כאן רץ אצל כל מי שגולש בכתבה. מדביקים רק קוד שהתקבל מפלטפורמת הפרסום או מהלקוח, ובודקים בכתבה החיה (Meta Pixel Helper / Tag Assistant) שהוא נטען.</div>
         </div>
       </section>
 
@@ -1062,6 +1110,96 @@
     $('leadFields').style.display = this.checked ? 'block' : 'none';
   });
 
+  /* ---------- פיקסלים ומעקב ברמת הכתבה ----------
+   * valid = מה שהבנייה מקבלת, grab = חילוץ המזהה מתוך קוד הטמעה שהודבק במלואו.
+   */
+  var PIXEL_FIELDS = [
+    {
+      id: 'px-meta', key: 'metaPixelId', name: 'פיקסל מטא', rule: 'ספרות בלבד',
+      valid: /^\d{6,20}$/,
+      grab: [/fbq\s*\(\s*['"]init['"]\s*,\s*['"](\d{6,20})['"]/i, /\b(\d{12,20})\b/]
+    },
+    {
+      id: 'px-ga4', key: 'ga4Id', name: 'המזהה של גוגל', rule: 'מתחיל ב-G- או AW-',
+      valid: /^(?:G|AW|GT|UA)-[A-Za-z0-9_-]{4,}$/,
+      grab: [/\b((?:G|AW|GT|UA)-[A-Za-z0-9_-]{4,})\b/]
+    },
+    {
+      id: 'px-taboola', key: 'taboolaId', name: 'טאבולה', rule: 'ספרות בלבד (Account ID)',
+      valid: /^\d{3,15}$/,
+      grab: [/libtrc\/unip\/(\d+)/i, /id\s*:\s*(\d+)/i, /\b(\d{3,15})\b/]
+    },
+    {
+      id: 'px-outbrain', key: 'outbrainId', name: 'אאוטבריין', rule: 'אותיות באנגלית, ספרות, מקף או קו תחתון',
+      valid: /^[A-Za-z0-9_-]{4,40}$/,
+      grab: [/OB_ADV_ID\s*=\s*['"]([A-Za-z0-9_-]+)['"]/i, /marketerId\s*[:=]\s*['"]([A-Za-z0-9_-]+)['"]/i]
+    }
+  ];
+
+  /** מקבל מה שהודבק בשדה ומחזיר מזהה נקי: אם הודבק קוד הטמעה שלם - שולף ממנו */
+  function grabId(field, raw) {
+    var v = String(raw || '').trim();
+    if (!v || field.valid.test(v)) return v;
+    for (var i = 0; i < field.grab.length; i++) {
+      var m = v.match(field.grab[i]);
+      if (m) return m[1];
+    }
+    return v;
+  }
+
+  function setTracking(t) {
+    t = t || {};
+    var on = PIXEL_FIELDS.some(function (f) { return Boolean(t[f.key]); }) || Boolean(t.headCode || t.conversionCode);
+    $('px-on').checked = on;
+    $('pxFields').style.display = on ? 'block' : 'none';
+    PIXEL_FIELDS.forEach(function (f) { $(f.id).value = t[f.key] || ''; });
+    $('px-head').value = t.headCode || '';
+    $('px-conv').value = t.conversionCode || '';
+  }
+
+  /** מחזיר את אובייקט הפיקסלים של הכתבה, null אם אין, ו-false אם משהו לא תקין */
+  function collectTracking() {
+    if (!$('px-on').checked) return null;
+    var t = {};
+    var bad = null;
+    PIXEL_FIELDS.forEach(function (f) {
+      var el = $(f.id);
+      var v = grabId(f, el.value);
+      el.value = v;
+      if (!v) return;
+      if (!f.valid.test(v)) { bad = bad || f; return; }
+      t[f.key] = v;
+    });
+    if (bad) {
+      showStatus('המזהה של ' + bad.name + ' לא נראה תקין (' + bad.rule + ').\nאפשר גם להדביק את קוד ההטמעה המלא והמזהה יישלף ממנו.', false);
+      $(bad.id).focus();
+      return false;
+    }
+    var head = $('px-head').value.trim();
+    if (head && head.indexOf('<') === -1) {
+      showStatus('קוד ההטמעה צריך לכלול תגיות, למשל <script>...<\/script>.\nאם זה קוד JavaScript בלבד שאמור לרוץ אחרי שליחת טופס - מקומו בשדה "קוד המרה אחרי שליחת טופס".', false);
+      $('px-head').focus();
+      return false;
+    }
+    var conv = $('px-conv').value.trim();
+    if (/<\s*script/i.test(conv)) {
+      showStatus('בשדה "קוד המרה אחרי שליחת טופס" מדביקים JavaScript בלבד, בלי תגיות <script>.', false);
+      $('px-conv').focus();
+      return false;
+    }
+    if (head) t.headCode = head;
+    if (conv) t.conversionCode = conv;
+    return Object.keys(t).length ? t : null;
+  }
+
+  $('px-on').addEventListener('change', function () {
+    $('pxFields').style.display = this.checked ? 'block' : 'none';
+  });
+
+  PIXEL_FIELDS.forEach(function (f) {
+    $(f.id).addEventListener('change', function () { this.value = grabId(f, this.value); });
+  });
+
   /* ---------- פתיחת כתבה לעריכה ---------- */
   function editMetaText(a) {
     var parts = [];
@@ -1107,6 +1245,7 @@
         fillClientSelects('', '');
         setFields(null);
       }
+      setTracking(a.tracking);
       $('edit-title').textContent = (a.title || '').slice(0, 45);
       editingType = res.type || 'manual';
       $('edit-type').textContent = editingType === 'rss' ? ' (כתבת RSS - מתחלפת בסבב היומי)' : '';
@@ -1141,6 +1280,7 @@
     $('leadFields').style.display = 'none';
     fillClientSelects('', '');
     setFields(null);
+    setTracking(null);
     setPreviewImg('');
     upStatus('');
   }
@@ -1391,7 +1531,8 @@
       date: new Date().toISOString(),
       featured: $('f-featured').checked,
       body: body,
-      lead: null
+      lead: null,
+      tracking: null
     };
 
     if ($('lead-on').checked) {
@@ -1414,6 +1555,10 @@
         fields: fields
       };
     }
+
+    var tracking = collectTracking();
+    if (tracking === false) return null;
+    article.tracking = tracking;
 
     if (editingOriginal) {
       if (editingOriginal.source) article.source = editingOriginal.source;

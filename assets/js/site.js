@@ -32,18 +32,40 @@
     }
   } catch (e) { /* אחסון חסום - ממשיכים בלי */ }
 
-  /* --- אירוע "ליד" לפיקסלים (נשלח רק לפיקסלים שהוגדרו ב-data/site.json) --- */
-  function fireLeadEvent(name) {
+  /* --- אירוע "ליד" לפיקסלים ---
+   * המזהים מגיעים מ-data/site.json (כל האתר) + מהפיקסלים של הכתבה (הפאנל), כבר מאוחדים בבנייה.
+   * lead = { campaign, article, leadId }. פיקסל שלא הוגדר או שלא נטען - פשוט מדלגים עליו.
+   */
+  function eachId(list, fn) { (list || []).forEach(fn); }
+
+  function fireLeadEvent(lead) {
+    var name = lead.campaign || lead.article || '';
     try {
-      if (TRACK.taboolaId && window._tfa) {
-        window._tfa.push({ notify: 'event', name: TRACK.taboolaLeadEvent || 'lead', id: Number(TRACK.taboolaId) });
+      if (window._tfa) {
+        eachId(TRACK.taboolaIds, function (id) {
+          window._tfa.push({ notify: 'event', name: TRACK.taboolaLeadEvent || 'lead', id: Number(id) });
+        });
       }
-      if (TRACK.outbrainId && window.obApi) window.obApi('track', TRACK.outbrainLeadEvent || 'Lead');
-      if (TRACK.metaPixelId && window.fbq) window.fbq('track', 'Lead', { content_name: name });
-      if (TRACK.ga4Id && window.gtag) window.gtag('event', 'generate_lead', { campaign: name });
+      if (window.obApi && (TRACK.outbrainIds || []).length) window.obApi('track', TRACK.outbrainLeadEvent || 'Lead');
+      if (window.fbq) {
+        /* trackSingle = האירוע נרשם לפיקסל אחד ולא לכולם, כשיש גם פיקסל של האתר וגם של הכתבה */
+        eachId(TRACK.metaPixelIds, function (id) { window.fbq('trackSingle', id, 'Lead', { content_name: name }); });
+      }
+      if (window.gtag) {
+        eachId(TRACK.ga4Ids, function (id) { window.gtag('event', 'generate_lead', { send_to: id, campaign: name }); });
+      }
       window.dataLayer = window.dataLayer || [];
-      window.dataLayer.push({ event: 'lead_submitted', campaign: name });
+      window.dataLayer.push({ event: 'lead_submitted', campaign: name, article: lead.article || '' });
     } catch (e) { /* פיקסל שנפל לא מפריע למשתמש */ }
+
+    /* קוד המרה שהודבק בפאנל לכתבה הזו (פלטפורמות שאין להן שדה מזהה) */
+    if (TRACK.conversionCode) {
+      try {
+        new Function('lead', TRACK.conversionCode)(lead);
+      } catch (e) {
+        if (window.console) window.console.warn('קוד ההמרה של הכתבה נכשל:', e);
+      }
+    }
   }
 
   /* --- טלפון ישראלי: מחזיר ספרות מנורמלות (05XXXXXXXX / 0XXXXXXXX) או '' --- */
@@ -151,7 +173,7 @@
         .then(function () {
           form.style.display = 'none';
           if (successEl) successEl.style.display = 'block';
-          fireLeadEvent(payload.campaign || payload.article);
+          fireLeadEvent({ campaign: payload.campaign, article: payload.article, leadId: payload.leadId });
         })
         .catch(function () {
           showError('משהו השתבש בשליחה. נסו שוב בעוד רגע.');

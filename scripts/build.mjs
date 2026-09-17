@@ -141,54 +141,112 @@ const brand = site.brand || {};
 const LOGO_MARK = esc(brand.mark || site.siteName || '');
 const LOGO_TEXT = `${esc(brand.text || site.siteTitle)}${brand.textBold ? ` <b>${esc(brand.textBold)}</b>` : ''}`;
 
-/* ---------- פיקסלים ומדידה (data/site.json -> tracking; ריק = לא נטען כלום) ---------- */
+/* ---------- פיקסלים ומדידה ----------
+ * שתי רמות שמצטברות: data/site.json -> tracking (כל האתר) ו-article.tracking (כתבה בודדת, נקבע בפאנל).
+ * ריק = לא נטען כלום; מזהה שלא עומד בתבנית מושמט בשקט.
+ */
 const safeId = (v, re = /^[A-Za-z0-9_-]+$/) => (v && re.test(String(v)) ? String(v) : '');
 
-function trackingHead() {
-  const t = site.tracking || {};
+const ID_RULES = {
+  taboolaId: /^\d+$/,
+  outbrainId: /^[A-Za-z0-9_-]+$/,
+  metaPixelId: /^\d+$/,
+  ga4Id: /^[A-Za-z0-9_-]+$/,
+};
+
+/** מזהי הפיקסלים של האתר + של הכתבה, מסוננים ובלי כפילויות: { taboolaId: ['123'], ... } */
+function trackingIds(articleTracking) {
+  const out = {};
+  for (const [key, re] of Object.entries(ID_RULES)) {
+    out[key] = [site.tracking?.[key], articleTracking?.[key]]
+      .map((v) => safeId(v, re))
+      .filter((v, i, arr) => v && arr.indexOf(v) === i);
+  }
+  return out;
+}
+
+/**
+ * קוד הטמעה חופשי שהודבק בפאנל: בלוקי <noscript> יורדים לגוף העמוד, כי <noscript>
+ * עם <img> בתוך <head> סוגר אותו מוקדם ודוחף את שאר התגיות ל-body.
+ */
+function splitEmbed(code) {
+  const raw = String(code || '').trim();
+  if (!raw) return { head: '', body: '' };
+  const body = [];
+  const head = raw.replace(/<noscript[\s\S]*?<\/noscript>/gi, (m) => { body.push(m); return ''; });
+  return { head: head.trim(), body: body.join('\n') };
+}
+
+function trackingHead(articleTracking) {
+  const ids = trackingIds(articleTracking);
   const parts = [];
 
-  const taboola = safeId(t.taboolaId, /^\d+$/);
-  if (taboola) parts.push(`<script>
+  /* טאבולה: סקריפט לכל חשבון (מזהה אלמנט שונה, אחרת השני לא ייטען) */
+  ids.taboolaId.forEach((taboola) => parts.push(`<script>
 window._tfa = window._tfa || [];
 window._tfa.push({notify: 'event', name: 'page_view', id: ${taboola}});
 !function (t, f, a, x) { if (!document.getElementById(x)) { t.async = 1; t.src = a; t.id = x; f.parentNode.insertBefore(t, f); } }
-(document.createElement('script'), document.getElementsByTagName('script')[0], '//cdn.taboola.com/libtrc/unip/${taboola}/tfa.js', 'tb_tfa_script');
-</script>`);
+(document.createElement('script'), document.getElementsByTagName('script')[0], '//cdn.taboola.com/libtrc/unip/${taboola}/tfa.js', 'tb_tfa_script_${taboola}');
+</script>`));
 
-  const outbrain = safeId(t.outbrainId);
-  if (outbrain) parts.push(`<script data-obct>
-!function(_window,_document){var OB_ADV_ID='${outbrain}';if(_window.obApi){var toArray=function(o){return Object.prototype.toString.call(o)==='[object Array]'?o:[o]};_window.obApi.marketerId=toArray(_window.obApi.marketerId).concat(toArray(OB_ADV_ID));return}var api=_window.obApi=function(){api.dispatch?api.dispatch.apply(api,arguments):api.queue.push(arguments)};api.version='1.1';api.loaded=true;api.marketerId=OB_ADV_ID;api.queue=[];var tag=_document.createElement('script');tag.async=true;tag.src='//amplify.outbrain.com/cp/obtp.js';tag.type='text/javascript';var script=_document.getElementsByTagName('script')[0];script.parentNode.insertBefore(tag,script)}(window,document);
+  /* אאוטבריין: הסניפט עצמו מצרף מזהה נוסף אם כבר נטען, ולכן הוא חוזר לכל מזהה */
+  if (ids.outbrainId.length) {
+    const loaders = ids.outbrainId.map((outbrain) =>
+      `!function(_window,_document){var OB_ADV_ID='${outbrain}';if(_window.obApi){var toArray=function(o){return Object.prototype.toString.call(o)==='[object Array]'?o:[o]};_window.obApi.marketerId=toArray(_window.obApi.marketerId).concat(toArray(OB_ADV_ID));return}var api=_window.obApi=function(){api.dispatch?api.dispatch.apply(api,arguments):api.queue.push(arguments)};api.version='1.1';api.loaded=true;api.marketerId=OB_ADV_ID;api.queue=[];var tag=_document.createElement('script');tag.async=true;tag.src='//amplify.outbrain.com/cp/obtp.js';tag.type='text/javascript';var script=_document.getElementsByTagName('script')[0];script.parentNode.insertBefore(tag,script)}(window,document);`)
+      .join('\n');
+    parts.push(`<script data-obct>
+${loaders}
 obApi('track','PAGE_VIEW');
 </script>`);
+  }
 
-  const meta = safeId(t.metaPixelId, /^\d+$/);
-  if (meta) parts.push(`<script>
+  /* מטא: init לכל פיקסל ואז PageView אחד - כל פיקסל שאותחל מקבל אותו פעם אחת */
+  if (ids.metaPixelId.length) {
+    const inits = ids.metaPixelId.map((meta) => `fbq('init','${meta}');`).join('');
+    parts.push(`<script>
 !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
-fbq('init','${meta}');fbq('track','PageView');
+${inits}fbq('track','PageView');
 </script>`);
+  }
 
-  const ga4 = safeId(t.ga4Id);
-  if (ga4) parts.push(`<script async src="https://www.googletagmanager.com/gtag/js?id=${ga4}"></script>
-<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${ga4}');</script>`);
+  if (ids.ga4Id.length) {
+    const configs = ids.ga4Id.map((ga4) => `gtag('config','${ga4}');`).join('');
+    parts.push(`<script async src="https://www.googletagmanager.com/gtag/js?id=${ids.ga4Id[0]}"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());${configs}</script>`);
+  }
 
   return parts.join('\n');
 }
 
-const TRACKING_HEAD = trackingHead();
-
 /* ההגדרות שהדפדפן צריך (טופס לידים + אירועי פיקסל). '<' מקודד כדי שלא יסגור את תג הסקריפט */
-const SITE_CONFIG = JSON.stringify({
-  leadWebhook: site.leadWebhook || '',
-  tracking: {
-    taboolaId: safeId(site.tracking?.taboolaId, /^\d+$/),
-    taboolaLeadEvent: site.tracking?.taboolaLeadEvent || 'lead',
-    outbrainId: safeId(site.tracking?.outbrainId),
-    outbrainLeadEvent: site.tracking?.outbrainLeadEvent || 'Lead',
-    metaPixelId: safeId(site.tracking?.metaPixelId, /^\d+$/),
-    ga4Id: safeId(site.tracking?.ga4Id),
-  },
-}).replace(/</g, '\\u003c');
+function siteConfig(articleTracking) {
+  const t = site.tracking || {};
+  const ids = trackingIds(articleTracking);
+  return JSON.stringify({
+    leadWebhook: site.leadWebhook || '',
+    tracking: {
+      taboolaIds: ids.taboolaId,
+      taboolaLeadEvent: t.taboolaLeadEvent || 'lead',
+      outbrainIds: ids.outbrainId,
+      outbrainLeadEvent: t.outbrainLeadEvent || 'Lead',
+      metaPixelIds: ids.metaPixelId,
+      ga4Ids: ids.ga4Id,
+      conversionCode: String(articleTracking?.conversionCode || '').trim(),
+    },
+  }).replace(/</g, '\\u003c');
+}
+
+/** כל מה שהפיקסלים צריכים בעמוד: סקריפטים ל-head, שאריות ל-body והגדרות ל-window.SITE */
+function pixelsFor(articleTracking) {
+  const embed = splitEmbed(articleTracking?.headCode);
+  return {
+    head: [trackingHead(articleTracking), embed.head].filter(Boolean).join('\n'),
+    body: embed.body,
+    config: siteConfig(articleTracking),
+  };
+}
+
+const SITE_PIXELS = pixelsFor(null);
 
 /* ---------- רכיבי HTML ---------- */
 const navHtml = (root, activeCat = '') =>
@@ -197,14 +255,15 @@ const navHtml = (root, activeCat = '') =>
       `<a href="${root}category/${c.slug}.html"${c.name === activeCat ? ' class="active"' : ''}>${esc(c.name)}</a>`)
     .join('\n      ');
 
-function renderPage({ title, description, content, root, headExtra = '', activeCat = '' }) {
+function renderPage({ title, description, content, root, headExtra = '', activeCat = '', pixels = SITE_PIXELS }) {
   // החלפה באמצעות פונקציה כדי שתווי $ בתוכן לא יתפרשו כתבנית החלפה
   const fill = (tpl, key, val) => tpl.replaceAll(key, () => val);
   let html = layout;
   html = fill(html, '{{TITLE}}', esc(title));
   html = fill(html, '{{DESCRIPTION}}', escAttr(description || site.description));
   html = fill(html, '{{HEAD_EXTRA}}', headExtra);
-  html = fill(html, '{{TRACKING_HEAD}}', TRACKING_HEAD);
+  html = fill(html, '{{TRACKING_HEAD}}', pixels.head);
+  html = fill(html, '{{BODY_EXTRA}}', pixels.body);
   html = fill(html, '{{NAV}}', navHtml(root, activeCat));
   html = fill(html, '{{CONTENT}}', content);
   html = fill(html, '{{ROOT}}', root);
@@ -213,7 +272,7 @@ function renderPage({ title, description, content, root, headExtra = '', activeC
   html = fill(html, '{{LOGO_TEXT}}', LOGO_TEXT);
   html = fill(html, '{{TAGLINE}}', esc(site.tagline));
   html = fill(html, '{{YEAR}}', String(new Date().getFullYear()));
-  html = fill(html, '{{SITE_CONFIG}}', SITE_CONFIG);
+  html = fill(html, '{{SITE_CONFIG}}', pixels.config);
   return html;
 }
 
@@ -411,6 +470,7 @@ ${mdToHtml(a.body || '')}
         title: `${a.title} | ${site.siteTitle}`,
         description: a.subtitle || a.title,
         content, root: '../', headExtra: head, activeCat: a.category,
+        pixels: pixelsFor(a.tracking),
       }));
   }
 }
