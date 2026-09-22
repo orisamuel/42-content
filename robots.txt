@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /admin/
 
-Sitemap: https://orisamuel.github.io/42-content/sitemap.xml
+Sitemap: https://channel19.vercel.app/sitemap.xml

@@ -48,16 +48,25 @@ jobs:
         run: node scripts/build.mjs
 
       - name: קומיט של הדפים והתמונות שנוצרו
+        id: commit
         run: |
           git config user.name "channel19-bot"
           git config user.email "actions@github.com"
           git add -A
           if git diff --cached --quiet; then
             echo "אין שינויים"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             git commit -m "בנייה מחדש של דפי האתר [skip ci]"
             git push || (git pull --rebase && git push)
+            echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: פריסה ל-Vercel
+        # הקומיט נושא [skip ci] כדי לא להפעיל את הוורקפלואו מחדש, וורסל מכבדת את אותו סימון
+        # ולכן לא הייתה נוצרת פריסה מהפוש. ה-Deploy Hook מעלה את התוכן החדש לאוויר.
+        if: steps.commit.outputs.changed == 'true'
+        run: curl -fsS -X POST "${{ secrets.VERCEL_DEPLOY_HOOK }}" -o /dev/null
 
       - name: ניקוי לפני העלאה (node_modules לא עולה לאתר)
         run: rm -rf node_modules

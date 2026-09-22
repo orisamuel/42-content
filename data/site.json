@@ -5,7 +5,7 @@
   "authorName": "מערכת Channel 19",
   "tagline": "התוכן שמעניין אתכם באמת",
   "description": "Channel 19 - חדשות, כלכלה, צרכנות, טכנולוגיה ולייפסטייל. כל התוכן שמעניין אתכם במקום אחד.",
-  "baseUrl": "https://orisamuel.github.io/42-content",
+  "baseUrl": "https://channel19.vercel.app",
   "leadWebhook": "https://script.google.com/macros/s/AKfycbz4XJXiKdMbF6nxmfedy0SwdnbXgpdTfzKzFWMDtVmynumXSn1i-VBN__dk89RjKgRU4A/exec",
   "tracking": {
     "_help": "פיקסלים לקמפיינים. ריק = כבוי. taboolaId = מספר החשבון בטאבולה (Account ID), outbrainId = מזהה המפרסם (OB_ADV_ID), metaPixelId = מזהה פיקסל של מטא, ga4Id = G-XXXXXXX. אחרי שליחת טופס לידים נשלח אוטומטית אירוע ליד לכל פיקסל שמוגדר.",

@@ -33,7 +33,7 @@ var SHEET_NAME = 'לידים';
 var REPO = 'orisamuel/42-content';
 var ARTICLES_PATH = 'data/articles.json';
 var RSS_PATH = 'data/rss-articles.json';
-var SITE_BASE = 'https://orisamuel.github.io/42-content';
+var SITE_BASE = 'https://channel19.vercel.app';
 var TEXT_MODEL = 'gemini-flash-latest';
 var IMAGE_MODELS = ['gemini-3.1-flash-image-preview', 'gemini-2.5-flash-image', 'gemini-3-pro-image'];
 

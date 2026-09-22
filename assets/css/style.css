@@ -242,8 +242,19 @@ a { color: inherit; text-decoration: none; }
 .lead-box h3 { font-size: 23px; font-weight: 800; margin-bottom: 6px; }
 .lead-box .lead-sub { color: rgba(255, 255, 255, .8); font-size: 15px; margin-bottom: 18px; }
 .lead-form { display: grid; gap: 12px; position: relative; }
-/* מלכודת בוטים: שדה שמשתמש אמיתי לא רואה ולא ממלא */
-.lead-form .lead-hp { position: absolute; left: -9999px; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0; pointer-events: none; }
+/* מלכודת בוטים: שדה שמשתמש אמיתי לא רואה ולא ממלא.
+   לא להחביא עם left:-9999px - בעמוד RTL הגלישה שמאלה נחשבת לאזור גלילה
+   ויוצרת פס לבן ענק במובייל. מחביאים עם גודל 1px + clip-path. */
+.lead-form .lead-hp {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  width: 1px; height: 1px;
+  padding: 0; border: 0;
+  opacity: 0;
+  pointer-events: none;
+  clip-path: inset(50%);
+}
 .lead-form input, .lead-form select {
   width: 100%;
   padding: 13px 16px;

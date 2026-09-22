@@ -1,9 +1,9 @@
 # Channel 19 - אתר תוכן
 
-אתר תוכן סטטי בעברית (RTL) המתארח ב-GitHub Pages, עם עדכון אוטומטי מפידי RSS, ניסוח כתבות מחדש ותמונות AI באמצעות Gemini, וטפסי איסוף לידים לגוגל שיטס - כולל התראות מייל והעברה ל-CRM דרך webhooks.
+אתר תוכן סטטי בעברית (RTL) המתארח ב-Vercel, עם עדכון אוטומטי מפידי RSS, ניסוח כתבות מחדש ותמונות AI באמצעות Gemini, וטפסי איסוף לידים לגוגל שיטס - כולל התראות מייל והעברה ל-CRM דרך webhooks.
 
-**כתובת האתר:** https://orisamuel.github.io/42-content/
-**פאנל ניהול:** https://orisamuel.github.io/42-content/admin/ (מוגן בסיסמה)
+**כתובת האתר:** https://channel19.vercel.app/
+**פאנל ניהול:** https://channel19.vercel.app/admin/ (מוגן בסיסמה)
 
 ## איך זה עובד
 
@@ -18,7 +18,7 @@ data/articles.json  (כתבות ידניות + טפסי לידים)  ───�
                                   scripts/build.mjs  ──►  דחיסת תמונות + WebP  ──►  דפי HTML
                                                                         │
                                                                         ▼
-                                                                  GitHub Pages
+                                                                Vercel (CDN)
 ```
 
 ## מיתוג
@@ -36,7 +36,7 @@ data/articles.json  (כתבות ידניות + טפסי לידים)  ───�
 
 הכניסה לפאנל היא עם חשבון גוגל: כל חשבון ארגוני של `42creative.co.il` נכנס אוטומטית, וחשבונות אחרים נוספים לרשימת המורשים בבלוק **"גישה"** בפאנל. מאחורי הקלעים: כפתור "Sign in with Google" (Google Identity Services) מנפיק ID token, ה-Apps Script מאמת אותו מול גוגל (חתימה, תוקף, Client ID) ופותח session ל-6 שעות. כל פעולה בפאנל נרשמת על שם החשבון (מי פרסם, מי ערך).
 
-**הגדרה חד-פעמית** (בעל החשבון): Google Cloud Console ← APIs & Services ← Credentials ← Create credentials ← OAuth client ID ← Web application ← Authorized JavaScript origins: `https://orisamuel.github.io` (ואחרי מעבר לדומיין משלנו גם אותו) ← Create ← להעתיק את ה-Client ID אל בלוק "גישה" בפאנל. אם אין עדיין OAuth consent screen, מגדירים אחד (External, שם האפליקציה "Channel 19 Admin", מייל תמיכה) - לכניסה בלבד לא נדרש אימות של גוגל.
+**הגדרה חד-פעמית** (בעל החשבון): Google Cloud Console ← APIs & Services ← Credentials ← Create credentials ← OAuth client ID ← Web application ← Authorized JavaScript origins: `https://channel19.vercel.app` (וגם `https://orisamuel.github.io` כל עוד אתר ה-Pages הישן חי; אחרי מעבר לדומיין משלנו - גם אותו) ← Create ← להעתיק את ה-Client ID אל בלוק "גישה" בפאנל. אם אין עדיין OAuth consent screen, מגדירים אחד (External, שם האפליקציה "Channel 19 Admin", מייל תמיכה) - לכניסה בלבד לא נדרש אימות של גוגל.
 
 **אין סיסמת גיבוי** - הכניסה היא עם חשבון גוגל מורשה בלבד. אם כניסת גוגל נשברת (למשל Client ID שגוי), בעל הסקריפט מתקן את `GOOGLE_CLIENT_ID` ב-Script Properties דרך [העורך](https://script.google.com/d/1_zMcYV7qG2PVnFn7wTGPGXZXBViA9ezLzj_cKGfigMnruHAWC8QiEZvI/edit). הפרויקט ב-Google Cloud: `channel-19-admin` (Google Auth Platform ← Clients ← "Channel 19 Admin Web"). כשעוברים לדומיין משלנו מוסיפים אותו שם כ-Authorized JavaScript origin וכ-Authorized domain.
 
@@ -187,7 +187,7 @@ clasp update-deployment AKfycbz4XJXiKdMbF6nxmfedy0SwdnbXgpdTfzKzFWMDtVmynumXSn1i
 מזהה שלא עומד בתבנית מושמט בשקט בבנייה, ולכן הפאנל בודק אותו לפני השמירה. **פיקסל ברמת הכתבה לא דורש פריסת Apps Script** - השרת שומר את אובייקט הכתבה כמו שהוא, ו-`scripts/build.mjs` מייצר ממנו את התגיות בבנייה הבאה.
 
 לקמפיינים קשרו לכתובת כתבה עם פרמטרים, למשל:
-`https://orisamuel.github.io/42-content/articles/tax-refund-check-2026.html?utm_source=taboola&utm_campaign=tax1&utm_content={site}&tblci={click_id}`
+`https://channel19.vercel.app/articles/tax-refund-check-2026.html?utm_source=taboola&utm_campaign=tax1&utm_content={site}&tblci={click_id}`
 
 הפרמטרים (UTM ומזהי קליק) נשמרים בדפדפן ומצורפים לכל ליד שנשלח מאותה גלישה.
 
@@ -202,9 +202,9 @@ clasp update-deployment AKfycbz4XJXiKdMbF6nxmfedy0SwdnbXgpdTfzKzFWMDtVmynumXSn1i
 
 ## סקייל
 
-- האתר סטטי לחלוטין - אין שרת ואין מסד נתונים, כל דף הוא קובץ HTML שמוגש דרך ה-CDN של GitHub Pages. עשרות אלפי גולשים ביום לא מעמיסים על שום דבר.
-- המגבלה הרכה של GitHub Pages היא כ-100GB תעבורה בחודש. דף כתבה שוקל כ-0.4MB אחרי דחיסת התמונות, כלומר כ-250 אלף צפיות בחודש לפני שמתקרבים למגבלה.
-- מעבר לזה (או לקמפיינים גדולים לאורך זמן): דומיין משלו + Cloudflare בחינם מול GitHub Pages (Cloudflare מגיש מהמטמון, בלי מגבלת תעבורה), או Cloudflare Pages שמתחבר לאותו ריפו. שני המסלולים לא דורשים שינוי בקוד - רק עדכון `baseUrl` ב-`data/site.json` וקובץ `CNAME`.
+- האתר סטטי לחלוטין - אין שרת ואין מסד נתונים, כל דף הוא קובץ HTML שמוגש דרך ה-CDN של Vercel. עשרות אלפי גולשים ביום לא מעמיסים על שום דבר.
+- הפרויקט יושב ב-Vercel תחת הצוות `42-team` (תוכנית Pro). דף כתבה שוקל כ-0.4MB אחרי דחיסת התמונות. תעבורה נמדדת בחשבון הצוות - כדאי לעקוב בלשונית Usage לפני קמפיינים גדולים.
+- דומיין משלנו: מוסיפים אותו ב-Vercel (Project ← Settings ← Domains), מעדכנים `baseUrl` ב-`data/site.json` ו-`SITE_BASE` ב-`apps-script/leads.gs`, מריצים `npm run build` ומוסיפים את הדומיין ל-Authorized JavaScript origins בגוגל. אין צורך בקובץ `CNAME` - זה היה נדרש רק ל-GitHub Pages.
 - לידים: Apps Script מתאים בנוחות למאות עד אלפי לידים ביום. מעל כ-10 אלף ביום או פרצים של עשרות לידים בשנייה - מעבירים את הקליטה ל-Cloudflare Worker או ישירות ל-API של ה-CRM.
 
 ## מבנה הפרויקט
