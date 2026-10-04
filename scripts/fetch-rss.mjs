@@ -251,8 +251,9 @@ const catSlug = (name) => (site.categories.find((c) => c.name === name) || {}).s
 const IMG_DIR = join(ROOT_DIR, 'assets/rss-img');
 
 async function main() {
-  // מכסת RSS: משלימים עד למקסימום הכולל של האתר (כולל הכתבות הידניות)
-  const manualCount = JSON.parse(readFileSync(join(ROOT_DIR, 'data/articles.json'), 'utf8')).length;
+  // מכסת RSS: משלימים עד למקסימום הכולל של האתר (כולל הכתבות הידניות; חבויות לא תופסות מקום)
+  const manualCount = JSON.parse(readFileSync(join(ROOT_DIR, 'data/articles.json'), 'utf8'))
+    .filter((a) => !a.unlisted).length;
   const rssCap = Math.max(4, (site.maxTotalArticles || 20) - manualCount);
 
   // 1. משיכת כל הפידים במקביל

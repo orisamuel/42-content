@@ -257,6 +257,7 @@
           </div>
         </div>
         <label class="check" style="margin-top:14px"><input type="checkbox" id="f-featured"> כתבה ראשית (תוצג בראש עמוד הבית)</label>
+        <label class="check"><input type="checkbox" id="f-unlisted"> כתבה חבויה - נגישה רק בקישור ישיר (לא בדף הבית, בקטגוריות ובמפת האתר)</label>
         <label>גוף הכתבה *</label>
         <textarea id="f-body" placeholder="כתבו כאן את הכתבה (או תנו ל-AI). פסקאות מופרדות בשורה ריקה.&#10;&#10;## כותרת ביניים&#10;&#10;**טקסט מודגש**, [קישור](https://example.com)&#10;&#10;- פריט ברשימה&#10;- פריט נוסף"></textarea>
       </section>
@@ -489,7 +490,7 @@
         <div id="svc-status" style="font-size:13.5px"></div>
         <label>Google Client ID (לכפתור "כניסה עם גוגל")</label>
         <input type="text" id="ac-client" placeholder="1234567890-abcdef.apps.googleusercontent.com">
-        <div class="hint">מנוהל ב-Google Cloud Console, פרויקט Channel 19 Admin ← Google Auth Platform ← Clients. Authorized JavaScript origin: <b id="ac-origin">https://channel19.vercel.app</b>. שינוי כאן בלי סיבה יחסום את הכניסה לכולם.</div>
+        <div class="hint">מנוהל ב-Google Cloud Console, פרויקט Channel 19 Admin ← Google Auth Platform ← Clients. Authorized JavaScript origin: <b id="ac-origin">https://www.channel19.co.il</b>. שינוי כאן בלי סיבה יחסום את הכניסה לכולם.</div>
         <div class="row">
           <div>
             <label>דומיין ארגוני שנכנס אוטומטית</label>
@@ -759,6 +760,7 @@
       var link = el('a', a.title); link.href = a.url; link.target = '_blank'; link.rel = 'noopener'; link.style.color = 'inherit'; link.style.fontWeight = '600';
       tdTitle.appendChild(link);
       if (a.featured) tdTitle.appendChild(el('span', ' ⭐', 'muted'));
+      if (a.unlisted) tdTitle.appendChild(el('span', ' 🔗 חבויה', 'muted'));
       tr.insertCell().textContent = a.category || '';
       tr.insertCell().appendChild(badge(a.createdVia || (a.type === 'rss' ? 'rss' : 'manual')));
       tr.insertCell().textContent = a.imageSource || '';
@@ -1234,6 +1236,7 @@
       $('f-slug').value = a.id;
       $('f-slug').disabled = true;
       $('f-featured').checked = Boolean(a.featured);
+      $('f-unlisted').checked = Boolean(a.unlisted);
       $('f-body').value = a.body || '';
       setPreviewImg(a.image || '');
       if (a.lead && a.lead.enabled) {
@@ -1284,6 +1287,7 @@
     ['f-title', 'f-subtitle', 'f-image', 'f-credit', 'f-slug', 'f-body', 'ai-topic', 'l-title', 'l-subtitle'].forEach(function (id) { $(id).value = ''; });
     $('f-author').value = DEFAULT_AUTHOR;
     $('f-featured').checked = false;
+    $('f-unlisted').checked = false;
     $('lead-on').checked = false;
     $('leadFields').style.display = 'none';
     fillClientSelects('', '');
@@ -1538,6 +1542,7 @@
       author: $('f-author').value.trim() || DEFAULT_AUTHOR,
       date: new Date().toISOString(),
       featured: $('f-featured').checked,
+      unlisted: $('f-unlisted').checked,
       body: body,
       lead: null,
       tracking: null

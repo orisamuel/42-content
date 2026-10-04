@@ -84,12 +84,21 @@ const all = [...manualArticles, ...rssArticles]
   .filter((a) => a && a.id && a.title && !seen.has(a.id) && seen.add(a.id))
   .sort((a, b) => new Date(b.date) - new Date(a.date));
 
-if (!all.length) {
+/* כתבה חבויה (unlisted): הדף שלה נבנה ונגיש בקישור ישיר, אבל היא לא מופיעה בדף הבית,
+ * בקטגוריות, ב"כתבות נוספות" ובמפת האתר - ומסומנת noindex למנועי חיפוש */
+const listed = all.filter((a) => !a.unlisted);
+
+if (!listed.length) {
   console.error('אין כתבות - בדקו את data/articles.json');
   process.exit(1);
 }
 
-const imgOf = (a) => a.image || `${site.baseUrl}/assets/img/cat-${catSlug(a.category)}.jpg`;
+/* דומיינים קודמים של האתר (legacyBaseUrls): כתובות שנשמרו איתם בנתונים (תמונות, קישורים בגוף כתבה)
+ * מוצגות עם baseUrl - כך הן גם מזוהות כתמונות מקומיות ומקבלות גרסאות WebP */
+const LEGACY_BASES = (site.legacyBaseUrls || []).map((u) => u.replace(/\/$/, ''));
+const toCurrentHost = (s) => LEGACY_BASES.reduce((out, old) => out.replaceAll(`${old}/`, `${site.baseUrl}/`), s);
+
+const imgOf = (a) => toCurrentHost(a.image || `${site.baseUrl}/assets/img/cat-${catSlug(a.category)}.jpg`);
 
 /* ---------- תמונות רספונסיביות ---------- */
 const VARIANT_WIDTHS = [480, 800, 1200];
@@ -370,14 +379,14 @@ const shareRow = `
 
 /* ---------- דף הבית ---------- */
 function buildIndex() {
-  const featured = [...all.filter((a) => a.featured), ...all.filter((a) => !a.featured)];
+  const featured = [...listed.filter((a) => a.featured), ...listed.filter((a) => !a.featured)];
   const [hero, side1, side2, ...rest] = featured;
   const latest = rest.slice(0, 12);
   const usedIds = new Set([hero, side1, side2, ...latest].filter(Boolean).map((a) => a.id));
 
   const catSections = site.categories
     .map((c) => {
-      const items = all.filter((a) => a.category === c.name && !usedIds.has(a.id)).slice(0, 3);
+      const items = listed.filter((a) => a.category === c.name && !usedIds.has(a.id)).slice(0, 3);
       if (items.length < 2) return '';
       return `
 <section class="section container">
@@ -429,8 +438,8 @@ function buildArticles() {
 
   for (const a of all) {
     const related = [
-      ...all.filter((x) => x.id !== a.id && x.category === a.category),
-      ...all.filter((x) => x.id !== a.id && x.category !== a.category),
+      ...listed.filter((x) => x.id !== a.id && x.category === a.category),
+      ...listed.filter((x) => x.id !== a.id && x.category !== a.category),
     ].slice(0, 3);
 
     const jsonLd = {
@@ -445,7 +454,7 @@ function buildArticles() {
       mainEntityOfPage: `${site.baseUrl}/${articleUrl(a)}`,
     };
 
-    const head = `<link rel="canonical" href="${site.baseUrl}/${articleUrl(a)}">
+    const head = `${a.unlisted ? '<meta name="robots" content="noindex, follow">\n' : ''}<link rel="canonical" href="${site.baseUrl}/${articleUrl(a)}">
 <meta property="og:type" content="article">
 <meta property="og:title" content="${escAttr(a.title)}">
 <meta property="og:description" content="${escAttr(a.subtitle || '')}">
@@ -471,7 +480,7 @@ function buildArticles() {
   </figure>
   ${a.imageCredit ? `<p class="img-credit">צילום: ${esc(a.imageCredit)}</p>` : ''}
   <div class="article-body">
-${mdToHtml(a.body || '')}
+${toCurrentHost(mdToHtml(a.body || ''))}
   </div>
   ${leadFormHtml(a)}
   ${shareRow}
@@ -501,7 +510,7 @@ function buildCategories() {
   mkdirSync(dir, { recursive: true });
 
   for (const c of site.categories) {
-    const items = all.filter((a) => a.category === c.name);
+    const items = listed.filter((a) => a.category === c.name);
     const content = `
 <section class="section container">
   <div class="section-head"><h2>${esc(c.name)}</h2></div>
@@ -548,7 +557,7 @@ function buildSitemap() {
   const urls = [
     `${site.baseUrl}/`,
     ...site.categories.map((c) => `${site.baseUrl}/category/${c.slug}.html`),
-    ...all.map((a) => `${site.baseUrl}/${articleUrl(a)}`),
+    ...listed.map((a) => `${site.baseUrl}/${articleUrl(a)}`),
   ];
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -564,4 +573,5 @@ buildArticles();
 buildCategories();
 buildStaticPages();
 buildSitemap();
-console.log(`נבנו בהצלחה: דף בית, ${all.length} כתבות, ${site.categories.length} קטגוריות, עמודים סטטיים ו-sitemap.`);
+const hiddenNote = all.length > listed.length ? ` (חבויות: ${all.length - listed.length})` : '';
+console.log(`נבנו בהצלחה: דף בית, ${all.length} כתבות${hiddenNote}, ${site.categories.length} קטגוריות, עמודים סטטיים ו-sitemap.`);

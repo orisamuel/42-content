@@ -33,7 +33,7 @@ var SHEET_NAME = 'לידים';
 var REPO = 'orisamuel/42-content';
 var ARTICLES_PATH = 'data/articles.json';
 var RSS_PATH = 'data/rss-articles.json';
-var SITE_BASE = 'https://channel19.vercel.app';
+var SITE_BASE = 'https://www.channel19.co.il';
 var TEXT_MODEL = 'gemini-flash-latest';
 var IMAGE_MODELS = ['gemini-3.1-flash-image-preview', 'gemini-2.5-flash-image', 'gemini-3-pro-image'];
 
@@ -445,6 +445,7 @@ function getArticles(props) {
         updatedBy: a.updatedBy || '',
         imageSource: imageSourceOf(a.image),
         featured: Boolean(a.featured),
+        unlisted: Boolean(a.unlisted),
         lead: a.lead && a.lead.enabled ? { campaignId: a.lead.campaignId || '', clientId: a.lead.clientId || '', campaign: a.lead.campaign || '' } : null,
         url: SITE_BASE + '/articles/' + a.id + '.html'
       };

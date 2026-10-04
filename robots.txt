@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /admin/
 
-Sitemap: https://channel19.vercel.app/sitemap.xml
+Sitemap: https://www.channel19.co.il/sitemap.xml
