@@ -104,7 +104,7 @@
   },
   {
     "id": "a-20260806-1534",
-    "title": "הסתערות על טופ עלי: למה כולם רוצים לחטוף שם דירה לפני שהמלאי ייגמר?",
+    "title": "הסתערות על טופ עלי: למה כולם רוצים לחטוף שם דירה",
     "subtitle": "השילוב בין איכות חיים גבוהה, קהילה חמה, אוויר הרים ונגישות מנצחת הופך את טופ עלי לאחד היעדים המבוקשים ביותר. הנה כל הסיבות שבגללן הדירות נחטפות – ואיך גם אתם יכולים להספיק.",
     "category": "חדשות",
     "image": "https://channel19.vercel.app/assets/uploads/up-1786027203364.jpg",
@@ -120,6 +120,8 @@
       "subtitle": "",
       "buttonText": "שלחו לי פרטים",
       "successMessage": "תודה! הפרטים נקלטו בהצלחה, ניצור איתכם קשר בהקדם.",
+      "clientId": "",
+      "campaignId": "",
       "campaign": "a-20260806-1534",
       "fields": [
         {
@@ -136,10 +138,12 @@
         }
       ]
     },
-    "updatedAt": "2026-08-06T14:40:08.239Z",
-    "createdBy": "ori@42creative.co.il",
+    "tracking": null,
     "createdAt": "2026-08-06T12:34:59.012Z",
-    "createdVia": "manual"
+    "createdBy": "ori@42creative.co.il",
+    "createdVia": "manual",
+    "updatedAt": "2026-10-04T10:06:11.294Z",
+    "updatedBy": "or@42creative.co.il"
   },
   {
     "id": "a-20260806-1504",
