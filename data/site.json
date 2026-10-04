@@ -1,7 +1,7 @@
 {
   "siteName": "Channel 19",
   "siteTitle": "Channel 19",
-  "brand": { "mark": "19", "text": "Channel", "textBold": "19" },
+  "brand": { "logo": "assets/brand/logo.png", "mark": "19", "text": "Channel", "textBold": "19" },
   "authorName": "מערכת Channel 19",
   "tagline": "התוכן שמעניין אתכם באמת",
   "description": "Channel 19 - חדשות, כלכלה, צרכנות, טכנולוגיה ולייפסטייל. כל התוכן שמעניין אתכם במקום אחד.",

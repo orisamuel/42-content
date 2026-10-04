@@ -136,10 +136,29 @@ const SIZES = {
   article: '(max-width: 800px) 100vw, 720px',
 };
 
-/* ---------- מיתוג ---------- */
+/* ---------- מיתוג ----------
+ * brand.logo = קובץ הלוגו (נתיב מתיקיית האתר). בלעדיו מוצג לוגו טקסט: ריבוע brand.mark + brand.text/textBold
+ */
 const brand = site.brand || {};
 const LOGO_MARK = esc(brand.mark || site.siteName || '');
 const LOGO_TEXT = `${esc(brand.text || site.siteTitle)}${brand.textBold ? ` <b>${esc(brand.textBold)}</b>` : ''}`;
+const LOGO_FILE = brand.logo && existsSync(join(ROOT_DIR, brand.logo)) ? brand.logo : '';
+if (brand.logo && !LOGO_FILE) console.warn(`⚠ קובץ הלוגו ${brand.logo} לא נמצא - מוצג לוגו טקסט`);
+
+/** width/height מכותרת ה-PNG, כדי שהדפדפן ישמור ללוגו מקום לפני שהוא נטען (בלי קפיצה של התפריט) */
+function pngSizeAttrs(rel) {
+  const buf = readFileSync(join(ROOT_DIR, rel));
+  if (buf.toString('ascii', 12, 16) !== 'IHDR') return '';
+  return ` width="${buf.readUInt32BE(16)}" height="${buf.readUInt32BE(20)}"`;
+}
+const LOGO_SIZE = LOGO_FILE ? pngSizeAttrs(LOGO_FILE) : '';
+
+const logoImg = (root) =>
+  `<img class="logo-img" src="${root}${escAttr(LOGO_FILE)}" alt="${escAttr(site.siteTitle)}"${LOGO_SIZE}>`;
+const headerLogo = (root) => (LOGO_FILE
+  ? logoImg(root)
+  : `<span class="logo-mark">${LOGO_MARK}</span>\n      <span class="logo-text" dir="ltr">${LOGO_TEXT}</span>`);
+const footerLogo = (root) => (LOGO_FILE ? logoImg(root) : `<span class="logo-mark small">${LOGO_MARK}</span>`);
 
 /* ---------- פיקסלים ומדידה ----------
  * שתי רמות שמצטברות: data/site.json -> tracking (כל האתר) ו-article.tracking (כתבה בודדת, נקבע בפאנל).
@@ -268,8 +287,8 @@ function renderPage({ title, description, content, root, headExtra = '', activeC
   html = fill(html, '{{CONTENT}}', content);
   html = fill(html, '{{ROOT}}', root);
   html = fill(html, '{{SITE_TITLE}}', esc(site.siteTitle));
-  html = fill(html, '{{LOGO_MARK}}', LOGO_MARK);
-  html = fill(html, '{{LOGO_TEXT}}', LOGO_TEXT);
+  html = fill(html, '{{LOGO}}', headerLogo(root));
+  html = fill(html, '{{FOOTER_LOGO}}', footerLogo(root));
   html = fill(html, '{{TAGLINE}}', esc(site.tagline));
   html = fill(html, '{{YEAR}}', String(new Date().getFullYear()));
   html = fill(html, '{{SITE_CONFIG}}', pixels.config);

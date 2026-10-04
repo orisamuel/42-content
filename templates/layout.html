@@ -10,7 +10,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ROOT}}assets/css/style.css">
-<link rel="icon" href="{{ROOT}}assets/img/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="{{ROOT}}assets/brand/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="icon" href="{{ROOT}}assets/brand/favicon-192.png" type="image/png" sizes="192x192">
+<link rel="apple-touch-icon" href="{{ROOT}}assets/brand/apple-touch-icon.png">
 {{TRACKING_HEAD}}
 </head>
 <body>
@@ -18,8 +20,7 @@
 <header class="site-header">
   <div class="container header-inner">
     <a class="logo" href="{{ROOT}}index.html" aria-label="{{SITE_TITLE}} - דף הבית">
-      <span class="logo-mark">{{LOGO_MARK}}</span>
-      <span class="logo-text" dir="ltr">{{LOGO_TEXT}}</span>
+      {{LOGO}}
     </a>
     <button class="nav-toggle" aria-label="תפריט" aria-expanded="false">
       <span></span><span></span><span></span>
@@ -37,7 +38,7 @@
 <footer class="site-footer">
   <div class="container footer-inner">
     <div class="footer-brand">
-      <span class="logo-mark small">{{LOGO_MARK}}</span>
+      {{FOOTER_LOGO}}
       <p>{{TAGLINE}}</p>
     </div>
     <nav class="footer-nav" aria-label="קישורים">

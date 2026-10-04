@@ -7,9 +7,9 @@
   --bg: #ffffff;
   --bg-soft: #f5f6f8;
   --brand: #0f1b2d;
-  --accent: #e63946;
-  --accent-dark: #c22733;
-  --cat-news: #e63946;
+  --accent: #da4149; /* האדום של הלוגו */
+  --accent-dark: #b33239;
+  --cat-news: #da4149;
   --cat-economy: #0e7c5a;
   --cat-consumer: #b45309;
   --cat-tech: #2563eb;
@@ -68,6 +68,9 @@ a { color: inherit; text-decoration: none; }
 .logo-mark.small { width: 32px; height: 32px; font-size: 15px; border-radius: 8px; }
 .logo-text { font-size: 20px; font-weight: 300; color: #fff; }
 .logo-text b { font-weight: 800; }
+/* לוגו כתמונה (brand.logo) - לבן על שקוף, לרקע הכהה של הכותרת והפוטר */
+.logo-img { height: 30px; width: auto; }
+.footer-brand .logo-img { height: 22px; }
 
 .main-nav { display: flex; gap: 4px; flex-wrap: wrap; }
 .main-nav a {
@@ -265,7 +268,7 @@ a { color: inherit; text-decoration: none; }
   font-size: 15.5px;
   color: var(--ink);
 }
-.lead-form input:focus, .lead-form select:focus { outline: 3px solid rgba(230, 57, 70, .45); border-color: var(--accent); }
+.lead-form input:focus, .lead-form select:focus { outline: 3px solid rgba(218, 65, 73, .45); border-color: var(--accent); }
 /* שדה בחירה: כל עוד לא נבחר כלום, הטקסט אפור כמו placeholder */
 .lead-form select:required:invalid { color: var(--muted); }
 .lead-form select option { color: var(--ink); }
@@ -298,7 +301,7 @@ a { color: inherit; text-decoration: none; }
 }
 .lead-error {
   display: none;
-  background: rgba(230, 57, 70, .18);
+  background: rgba(218, 65, 73, .18);
   border: 1px solid var(--accent);
   color: #ffd7da;
   border-radius: 10px;
