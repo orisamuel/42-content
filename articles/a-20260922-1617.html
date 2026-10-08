@@ -20,33 +20,9 @@
 <link rel="icon" href="../assets/brand/favicon-32.png" type="image/png" sizes="32x32">
 <link rel="icon" href="../assets/brand/favicon-192.png" type="image/png" sizes="192x192">
 <link rel="apple-touch-icon" href="../assets/brand/apple-touch-icon.png">
-<script data-obct type = "text/javascript">
-  /** DO NOT MODIFY THIS CODE**/
-  !function(_window, _document) {
-    var OB_ADV_ID = '00bb2a54b2735d3cd00f54ed48ae3aa838';
-    if (_window.obApi) {
-      var toArray = function(object) {
-        return Object.prototype.toString.call(object) === '[object Array]' ? object : [object];
-      };
-      _window.obApi.marketerId = toArray(_window.obApi.marketerId).concat(toArray(OB_ADV_ID));
-      return;
-    }
-    var api = _window.obApi = function() {
-      api.dispatch ? api.dispatch.apply(api, arguments) : api.queue.push(arguments);
-    };
-    api.version = '1.1';
-    api.loaded = true;
-    api.marketerId = OB_ADV_ID;
-    api.queue = [];
-    var tag = _document.createElement('script');
-    tag.async = true;
-    tag.src = '//amplify.outbrain.com/cp/obtp.js';
-    tag.type = 'text/javascript';
-    var script = _document.getElementsByTagName('script')[0];
-    script.parentNode.insertBefore(tag, script);
-  }(window, document);
-
-  obApi('track', 'PAGE_VIEW');
+<script data-obct>
+!function(_window,_document){var OB_ADV_ID='00bb2a54b2735d3cd00f54ed48ae3aa838';if(_window.obApi){var toArray=function(o){return Object.prototype.toString.call(o)==='[object Array]'?o:[o]};_window.obApi.marketerId=toArray(_window.obApi.marketerId).concat(toArray(OB_ADV_ID));return}var api=_window.obApi=function(){api.dispatch?api.dispatch.apply(api,arguments):api.queue.push(arguments)};api.version='1.1';api.loaded=true;api.marketerId=OB_ADV_ID;api.queue=[];var tag=_document.createElement('script');tag.async=true;tag.src='//amplify.outbrain.com/cp/obtp.js';tag.type='text/javascript';var script=_document.getElementsByTagName('script')[0];script.parentNode.insertBefore(tag,script)}(window,document);
+obApi('track','PAGE_VIEW');
 </script>
 </head>
 <body>
@@ -169,7 +145,7 @@
     <p class="footer-copy">© 2026 Channel 19. כל הזכויות שמורות.</p>
   </div>
 </footer>
-<script>window.SITE={"leadWebhook":"https://script.google.com/macros/s/AKfycbz4XJXiKdMbF6nxmfedy0SwdnbXgpdTfzKzFWMDtVmynumXSn1i-VBN__dk89RjKgRU4A/exec","tracking":{"taboolaIds":[],"taboolaLeadEvent":"lead","outbrainIds":[],"outbrainLeadEvent":"Lead","metaPixelIds":[],"ga4Ids":[],"conversionCode":""}};</script>
+<script>window.SITE={"leadWebhook":"https://script.google.com/macros/s/AKfycbz4XJXiKdMbF6nxmfedy0SwdnbXgpdTfzKzFWMDtVmynumXSn1i-VBN__dk89RjKgRU4A/exec","tracking":{"taboolaIds":[],"taboolaLeadEvent":"lead","outbrainIds":["00bb2a54b2735d3cd00f54ed48ae3aa838"],"outbrainLeadEvent":"Lead","metaPixelIds":[],"ga4Ids":[],"conversionCode":""}};</script>
 <script src="../assets/js/site.js" defer></script>
 </body>
 </html>
