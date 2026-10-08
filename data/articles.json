@@ -43,12 +43,13 @@
       ]
     },
     "tracking": {
-      "headCode": "<script data-obct type = \"text/javascript\">\n  /** DO NOT MODIFY THIS CODE**/\n  !function(_window, _document) {\n    var OB_ADV_ID = '00bb2a54b2735d3cd00f54ed48ae3aa838';\n    if (_window.obApi) {\n      var toArray = function(object) {\n        return Object.prototype.toString.call(object) === '[object Array]' ? object : [object];\n      };\n      _window.obApi.marketerId = toArray(_window.obApi.marketerId).concat(toArray(OB_ADV_ID));\n      return;\n    }\n    var api = _window.obApi = function() {\n      api.dispatch ? api.dispatch.apply(api, arguments) : api.queue.push(arguments);\n    };\n    api.version = '1.1';\n    api.loaded = true;\n    api.marketerId = OB_ADV_ID;\n    api.queue = [];\n    var tag = _document.createElement('script');\n    tag.async = true;\n    tag.src = '//amplify.outbrain.com/cp/obtp.js';\n    tag.type = 'text/javascript';\n    var script = _document.getElementsByTagName('script')[0];\n    script.parentNode.insertBefore(tag, script);\n  }(window, document);\n\n  obApi('track', 'PAGE_VIEW');\n</script>\n\n<!-- Google tag (gtag.js) -->\n<script async src=\"https://www.googletagmanager.com/gtag/js?id=G-2Y214Q7KV4\"></script>\n<script>\n  window.dataLayer = window.dataLayer || [];\n  function gtag(){dataLayer.push(arguments);}\n  gtag('js', new Date());\n\n  gtag('config', 'G-2Y214Q7KV4');\n</script>"
+      "headCode": "<script data-obct type = \"text/javascript\">\n  /** DO NOT MODIFY THIS CODE**/\n  !function(_window, _document) {\n    var OB_ADV_ID = '00bb2a54b2735d3cd00f54ed48ae3aa838';\n    if (_window.obApi) {\n      var toArray = function(object) {\n        return Object.prototype.toString.call(object) === '[object Array]' ? object : [object];\n      };\n      _window.obApi.marketerId = toArray(_window.obApi.marketerId).concat(toArray(OB_ADV_ID));\n      return;\n    }\n    var api = _window.obApi = function() {\n      api.dispatch ? api.dispatch.apply(api, arguments) : api.queue.push(arguments);\n    };\n    api.version = '1.1';\n    api.loaded = true;\n    api.marketerId = OB_ADV_ID;\n    api.queue = [];\n    var tag = _document.createElement('script');\n    tag.async = true;\n    tag.src = '//amplify.outbrain.com/cp/obtp.js';\n    tag.type = 'text/javascript';\n    var script = _document.getElementsByTagName('script')[0];\n    script.parentNode.insertBefore(tag, script);\n  }(window, document);\n\n  obApi('track', 'PAGE_VIEW');\n</script>\n\n<!-- Google tag (gtag.js) -->\n<script async src=\"https://www.googletagmanager.com/gtag/js?id=G-2Y214Q7KV4\"></script>\n<script>\n  window.dataLayer = window.dataLayer || [];\n  function gtag(){dataLayer.push(arguments);}\n  gtag('js', new Date());\n\n  gtag('config', 'G-2Y214Q7KV4');\n</script>",
+      "conversionCode": "gtag('event', 'qualify_lead', {\n  form_name: 'contact'\n});"
     },
     "createdAt": "2026-09-22T13:17:33.326Z",
     "createdBy": "eliya@42creative.co.il",
     "createdVia": "manual",
-    "updatedAt": "2026-10-08T14:48:41.676Z",
+    "updatedAt": "2026-10-08T14:54:39.320Z",
     "updatedBy": "liord@42creative.co.il"
   },
   {
